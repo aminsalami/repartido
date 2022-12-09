@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/aminsalami/discache/internal/agent"
+	"github.com/aminsalami/repartido/internal/agent"
 )
 
 func main() {

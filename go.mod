@@ -1,4 +1,4 @@
-module github.com/aminsalami/discache
+module github.com/aminsalami/repartido
 
 go 1.19
 
