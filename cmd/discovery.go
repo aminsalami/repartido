@@ -2,7 +2,7 @@ package cmd
 
 import (
 	"fmt"
-	"github.com/aminsalami/repartido/internal/discovery"
+	"github.com/aminsalami/repartido/internal/discovery/core"
 	"github.com/spf13/cobra"
 )
 
@@ -23,7 +23,6 @@ var discoveryRun = &cobra.Command{
 	Use:   "run",
 	Short: "Run the discovery server on port 7100 (default)",
 	Run: func(cmd *cobra.Command, args []string) {
-		logger.Info("Starting discovery server on port 7100")
-		discovery.StartServer()
+		core.StartServer()
 	},
 }

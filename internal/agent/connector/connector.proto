@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+option go_package = "github.com/aminsalami/repartido/internal/agent/connector";
+
+service NodeAPI{
+  rpc Get(Request) returns (NodeResponse) {}
+  rpc Set(Request) returns (NodeResponse) {}
+  rpc Del(Request) returns (NodeResponse) {}
+}
+
+message Request {
+  string key = 1;
+  string data = 2;
+}
+
+message NodeResponse {
+  bool success = 1;
+  string data = 2;
+}

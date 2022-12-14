@@ -1,7 +1,9 @@
 package agent
 
 import (
+	"context"
 	"encoding/hex"
+	"github.com/aminsalami/repartido/internal/agent/connector"
 	"go.uber.org/zap"
 	"net/http"
 )
@@ -21,6 +23,9 @@ var logger *zap.Logger
 type NodeInfo struct {
 	Name string
 	Addr string
+
+	// A gRPC connection to node
+	Api connector.NodeAPIClient
 }
 
 // nodes map virtual nodes into the actual-node info
@@ -36,7 +41,6 @@ type Agent struct {
 
 	// HashManager creates a key(aka hash-string) to be used to find out which connector is holding the data
 	HashManager   HashManager
-	NodeConnector Connector
 	RequestParser RequestParser
 }
 
@@ -60,7 +64,7 @@ func NewAgent(hm HashManager, addr string) Agent {
 	}
 }
 
-func (agent Agent) LocateNode(key []byte) (*NodeInfo, error) {
+func (agent Agent) LocateNodeByKey(key []byte) (*NodeInfo, error) {
 	// position is a number from 0 to 128. Every number indicates a virtual server.
 	position := agent.HashManager.IntFromHash(key)
 	// TODO: Check if there is exactly one node from 0 to 127
@@ -69,26 +73,31 @@ func (agent Agent) LocateNode(key []byte) (*NodeInfo, error) {
 
 func (agent Agent) RetrieveData(data string) (string, error) {
 	key := agent.HashManager.Hash(data)
-	nodeInfo, err := agent.LocateNode(key)
-	if err != nil {
-		return "", err
-	}
-	res, err := agent.NodeConnector.Get(nodeInfo, hex.EncodeToString(key))
-	_ = res
+	nodeInfo, err := agent.LocateNodeByKey(key)
 	if err != nil {
 		return "", err
 	}
 
-	return res, err
+	// Create a gRPC request and send it to node
+	nodeRequest := connector.Request{Key: hex.EncodeToString(key)}
+	res, err := nodeInfo.Api.Get(context.Background(), &nodeRequest)
+
+	if err != nil {
+		return "", err
+	}
+
+	return res.Data, err
 }
 
 func (agent Agent) StoreData(data string) error {
 	key := agent.HashManager.Hash(data)
-	nodeInfo, err := agent.LocateNode(key)
+	nodeInfo, err := agent.LocateNodeByKey(key)
 	if err != nil {
 		return err
 	}
-	err = agent.NodeConnector.Put(nodeInfo, data)
+
+	nodeRequest := connector.Request{Key: hex.EncodeToString(key)}
+	_, err = nodeInfo.Api.Set(context.Background(), &nodeRequest)
 	if err != nil {
 		return err
 	}
@@ -102,7 +111,7 @@ func (agent Agent) StoreData(data string) error {
 //}
 
 // Start listening on port to receive commands locally
-// The first idea was to implement on top of tcp connection with a simple customized protocol.
+// The first idea was to implement on top of tcp connector with a simple customized protocol.
 // However, It is unnecessary for now. We can rely on http to pass our customized messages.
 func (agent Agent) Start() {
 	// Step-1 Start communication with the "DisCache Controller"
