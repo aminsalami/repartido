@@ -1,18 +1,12 @@
-package agent
+package adaptors
 
 import (
 	"encoding/json"
+	"github.com/aminsalami/repartido/internal/agent/entities"
+	"github.com/aminsalami/repartido/internal/agent/ports"
 	"io"
 	"net/http"
 )
-
-type ParsedRequest struct {
-	Command Command
-	Key     string
-	Data    string
-}
-
-// -----------------------------------------------------------------
 
 // RestParser implements RequestParser interface to convert REST body to a ParsedRequest.
 // Rest Examples:
@@ -23,7 +17,7 @@ type ParsedRequest struct {
 //	http GET /data/nodes --json {}
 type RestParser struct{}
 
-func (parser RestParser) Parse(rawRequest any, parsed *ParsedRequest) error {
+func (parser RestParser) Parse(rawRequest any, parsed *entities.ParsedRequest) error {
 	req := rawRequest.(*http.Request)
 	body, err := io.ReadAll(req.Body)
 	if err != nil {
@@ -41,17 +35,17 @@ func (parser RestParser) Parse(rawRequest any, parsed *ParsedRequest) error {
 	parsed.Data = bodyStruct.data
 	switch req.Method {
 	case http.MethodGet:
-		parsed.Command = GET
+		parsed.Command = entities.GET
 	case http.MethodPost:
-		parsed.Command = SET
+		parsed.Command = entities.SET
 	case http.MethodDelete:
-		parsed.Command = DEL
+		parsed.Command = entities.DEL
 	default:
-		parsed.Command = UNKNOWN
+		parsed.Command = entities.Unknown
 	}
 	return nil
 }
 
-func NewRestParser() RequestParser {
+func NewRestParser() ports.RequestParser {
 	return RestParser{}
 }

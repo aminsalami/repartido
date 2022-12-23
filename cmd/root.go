@@ -5,11 +5,7 @@ import (
 	"go.uber.org/zap"
 )
 
-var logger *zap.Logger
-
-func init() {
-	logger, _ = zap.NewDevelopment()
-}
+var logger = zap.NewExample().Sugar()
 
 var rootCmd = &cobra.Command{
 	Use:   "repartido",

@@ -1,4 +1,8 @@
-package agent
+package ports
+
+import (
+	"github.com/aminsalami/repartido/internal/agent/entities"
+)
 
 // HashManager implements tools for consistent hashing.
 type HashManager interface {
@@ -8,5 +12,5 @@ type HashManager interface {
 
 // RequestParser is an interface to convert client requests (through REST, grpc, customized-protocol) to ParsedRequest
 type RequestParser interface {
-	Parse(any, *ParsedRequest) error
+	Parse(any, *entities.ParsedRequest) error
 }

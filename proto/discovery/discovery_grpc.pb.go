@@ -4,7 +4,7 @@
 // - protoc             v3.12.4
 // source: discovery.proto
 
-package grpc
+package discovery
 
 import (
 	context "context"
@@ -23,7 +23,7 @@ const _ = grpc.SupportPackageIsVersion7
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type DiscoveryApiClient interface {
 	Get(ctx context.Context, in *StatusRequest, opts ...grpc.CallOption) (*StatusResponse, error)
-	List(ctx context.Context, in *Empty, opts ...grpc.CallOption) (*StatusListResponse, error)
+	GetRing(ctx context.Context, in *Empty, opts ...grpc.CallOption) (*StatusListResponse, error)
 	Register(ctx context.Context, in *Node, opts ...grpc.CallOption) (*Response, error)
 	Unregister(ctx context.Context, in *Empty, opts ...grpc.CallOption) (*Response, error)
 }
@@ -45,9 +45,9 @@ func (c *discoveryApiClient) Get(ctx context.Context, in *StatusRequest, opts ..
 	return out, nil
 }
 
-func (c *discoveryApiClient) List(ctx context.Context, in *Empty, opts ...grpc.CallOption) (*StatusListResponse, error) {
+func (c *discoveryApiClient) GetRing(ctx context.Context, in *Empty, opts ...grpc.CallOption) (*StatusListResponse, error) {
 	out := new(StatusListResponse)
-	err := c.cc.Invoke(ctx, "/discoveryApi/list", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/discoveryApi/getRing", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -77,7 +77,7 @@ func (c *discoveryApiClient) Unregister(ctx context.Context, in *Empty, opts ...
 // for forward compatibility
 type DiscoveryApiServer interface {
 	Get(context.Context, *StatusRequest) (*StatusResponse, error)
-	List(context.Context, *Empty) (*StatusListResponse, error)
+	GetRing(context.Context, *Empty) (*StatusListResponse, error)
 	Register(context.Context, *Node) (*Response, error)
 	Unregister(context.Context, *Empty) (*Response, error)
 	mustEmbedUnimplementedDiscoveryApiServer()
@@ -90,8 +90,8 @@ type UnimplementedDiscoveryApiServer struct {
 func (UnimplementedDiscoveryApiServer) Get(context.Context, *StatusRequest) (*StatusResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Get not implemented")
 }
-func (UnimplementedDiscoveryApiServer) List(context.Context, *Empty) (*StatusListResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method List not implemented")
+func (UnimplementedDiscoveryApiServer) GetRing(context.Context, *Empty) (*StatusListResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetRing not implemented")
 }
 func (UnimplementedDiscoveryApiServer) Register(context.Context, *Node) (*Response, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Register not implemented")
@@ -130,20 +130,20 @@ func _DiscoveryApi_Get_Handler(srv interface{}, ctx context.Context, dec func(in
 	return interceptor(ctx, in, info, handler)
 }
 
-func _DiscoveryApi_List_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _DiscoveryApi_GetRing_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(Empty)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(DiscoveryApiServer).List(ctx, in)
+		return srv.(DiscoveryApiServer).GetRing(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/discoveryApi/list",
+		FullMethod: "/discoveryApi/getRing",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(DiscoveryApiServer).List(ctx, req.(*Empty))
+		return srv.(DiscoveryApiServer).GetRing(ctx, req.(*Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -196,8 +196,8 @@ var DiscoveryApi_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _DiscoveryApi_Get_Handler,
 		},
 		{
-			MethodName: "list",
-			Handler:    _DiscoveryApi_List_Handler,
+			MethodName: "getRing",
+			Handler:    _DiscoveryApi_GetRing_Handler,
 		},
 		{
 			MethodName: "register",

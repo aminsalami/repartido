@@ -1,10 +1,10 @@
 syntax = "proto3";
 
-option go_package = "github.com/aminsalami/repartido/internal/discovery/grpc";
+option go_package = "github.com/aminsalami/repartido/internal/discovery/discovery";
 
 service discoveryApi {
   rpc get(StatusRequest) returns (StatusResponse) {}
-  rpc list(Empty) returns (StatusListResponse) {}
+  rpc getRing(Empty) returns (StatusListResponse) {}
   rpc register(Node) returns (Response) {}
   rpc unregister(Empty) returns (Response) {}
 }
@@ -32,6 +32,7 @@ message StatusResponse {
   int32 port = 3;
   string last_ping = 4;
   int32 ram_size = 5;
+  repeated int32 vnumbers = 6;
 }
 
 message StatusListResponse {

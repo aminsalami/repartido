@@ -1,4 +1,4 @@
-package agent
+package adaptors
 
 import (
 	"encoding/hex"

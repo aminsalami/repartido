@@ -1,7 +1,8 @@
-package agent
+package adaptors
 
 import (
 	"crypto/md5"
+	"github.com/aminsalami/repartido/internal/agent/ports"
 	"math/big"
 )
 
@@ -23,6 +24,6 @@ func (hm md5HashManager) IntFromHash(h []byte) int {
 	return int(result.Int64())
 }
 
-func newMd5HashManager() HashManager {
+func NewMd5HashManager() ports.HashManager {
 	return md5HashManager{}
 }

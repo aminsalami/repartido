@@ -1,0 +1,27 @@
+syntax = "proto3";
+
+option go_package = "github.com/aminsalami/repartido/node";
+
+service commandApi {
+  rpc Get(Command) returns (CommandResponse) {}
+  rpc Set(Command) returns (CommandResponse) {}
+  rpc Del(Command) returns (CommandResponse) {}
+}
+
+message Command {
+  Cmd cmd = 1;
+  string key = 2;
+  string data = 3;
+}
+
+enum Cmd {
+  GET = 0;
+  SET = 1;
+  DEL = 2;
+}
+
+
+message CommandResponse {
+  bool success = 1;
+  string data = 2;
+}

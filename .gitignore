@@ -196,3 +196,8 @@ tags
 # --------------------------------
 # --------------------------------
 repartido
+agent.conf
+discovery.conf
+node.conf
+*.db.sql
+*.sql.db
