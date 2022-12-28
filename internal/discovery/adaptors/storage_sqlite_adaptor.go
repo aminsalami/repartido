@@ -68,8 +68,8 @@ func sqlMigrate(db *sql.DB) error {
 	})
 }
 
-func (s *SqliteCacheStorage) Save(node discovery.CacheNode) error {
-	logger.Info("Saving into table `cache_node`", zap.Object("node", &node))
+func (s *SqliteCacheStorage) Save(node *discovery.CacheNode) error {
+	logger.Info("Saving into table `cache_node`", zap.Object("node", node))
 	_, err := s.db.Exec(
 		"Insert INTO cache_node (name, host, port, last_ping, ram_size) values (?, ?, ?, ?, ?)",
 		node.Name, node.Host, node.Port, node.LastPing, node.RamSize,
@@ -82,9 +82,15 @@ func (s *SqliteCacheStorage) Get() (discovery.CacheNode, error) {
 	return discovery.CacheNode{}, nil
 }
 
-func (s *SqliteCacheStorage) List() ([]discovery.CacheNode, error) {
+func (s *SqliteCacheStorage) List() ([]*discovery.CacheNode, error) {
 	logger.Info("Return a list of empty CacheNodes from sqlite!")
-	return []discovery.CacheNode{}, nil
+	return []*discovery.CacheNode{}, nil
+}
+
+func (s *SqliteCacheStorage) Delete(node *discovery.CacheNode) error {
+	logger.Info("Deleting the node")
+	_, err := s.db.Exec("DELETE FROM cache_node WHERE id = ? AND host = ? AND port = ?", node.Id, node.Host, node.Port)
+	return err
 }
 
 func (s *SqliteCacheStorage) Close() error {

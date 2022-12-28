@@ -1,7 +1,11 @@
 package discovery
 
-import "go.uber.org/zap/zapcore"
+import (
+	"go.uber.org/zap/zapcore"
+	"strconv"
+)
 
+// CacheNode Implements ring.Comparable in order to be saved on the ring
 type CacheNode struct {
 	Id   string
 	Name string // zap:
@@ -12,6 +16,10 @@ type CacheNode struct {
 	LastPing string
 	RamSize  int32
 	//Conn CacheNodeAPI
+}
+
+func (n *CacheNode) Hash() string {
+	return n.Id + n.Host + ":" + strconv.Itoa(int(n.Port))
 }
 
 // MarshalLogObject helps the `zap` to create a structural log of cacheNode object

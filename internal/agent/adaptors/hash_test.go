@@ -23,19 +23,19 @@ func getRandomString(l int) string {
 }
 
 func TestMd5HashManager(t *testing.T) {
-	hm := newMd5HashManager()
+	hm := NewMd5HashManager()
 	assert.Equal(t, "952d2c56d0485958336747bcdd98590d", hex.EncodeToString(hm.Hash("Hello!")))
 }
 
 func TestMd5IntFromHash(t *testing.T) {
-	hm := newMd5HashManager()
+	hm := NewMd5HashManager()
 	hashed := hm.Hash("Hello!")
 	assert.Equal(t, 13, hm.IntFromHash(hashed))
 }
 
 // Test if the hash mod is always less than 128 for random strings
 func TestMd5IntFromHashLessThan128(t *testing.T) {
-	hm := newMd5HashManager()
+	hm := NewMd5HashManager()
 	for i := 1; i < len(letters); i++ {
 		word := getRandomString(i)
 		hashed := hm.Hash(word)

@@ -31,6 +31,10 @@ type NodeInfo struct {
 	grpc connector.CommandApiClient
 }
 
+func (n *NodeInfo) Hash() string {
+	return n.Id + n.Addr
+}
+
 // Agent is standing between clients and nodes. Provides an interface for clients
 // to get(or set) data from(or to) the right node.
 type Agent struct {
@@ -38,7 +42,7 @@ type Agent struct {
 	// Default "0.0.0.0:6000"
 	Addr string
 
-	ring *ring.Ring
+	ring *ring.Ring[*NodeInfo]
 
 	discoveryClient discovery.DiscoveryApiClient
 	// HashManager creates a key(aka hash-string) to be used to find out which connector is holding the data
@@ -57,7 +61,7 @@ func NewAgent(hm ports.HashManager, addr string) Agent {
 	return Agent{
 		Addr: addr,
 
-		ring:          ring.NewRing(),
+		ring:          ring.NewRing[*NodeInfo](),
 		HashManager:   hm,
 		RequestParser: adaptors.NewRestParser(),
 	}
@@ -67,7 +71,7 @@ func (agent *Agent) LocateNodeByKey(key []byte) (*NodeInfo, error) {
 	// position is a number from 0 to 128. Every number indicates a virtual server.
 	position := agent.HashManager.IntFromHash(key)
 	// TODO: Check if there is exactly one node from 0 to 127
-	return agent.ring.Get(position).(*NodeInfo), nil
+	return agent.ring.Get(position), nil
 }
 
 func (agent *Agent) RetrieveData(data string) (string, error) {
