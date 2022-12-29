@@ -3,12 +3,17 @@ package node
 import (
 	"context"
 	"errors"
+	"github.com/aminsalami/repartido/internal/node/adaptors"
 	grpc2 "github.com/aminsalami/repartido/proto/discovery"
 	nodegrpc "github.com/aminsalami/repartido/proto/node"
+	"github.com/spf13/viper"
+	"go.uber.org/zap"
 	googleGrpc "google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"net"
 )
+
+var logger = zap.NewExample().Sugar()
 
 type GrpcServer struct {
 	service *cacheService
@@ -28,16 +33,21 @@ func (s *GrpcServer) Get(ctx context.Context, command *nodegrpc.Command) (*nodeg
 }
 
 func (s *GrpcServer) Set(ctx context.Context, command *nodegrpc.Command) (*nodegrpc.CommandResponse, error) {
-	//TODO implement me
-	return nil, nil
+	if e := s.service.set(command.Key, command.Data); e != nil {
+		return &nodegrpc.CommandResponse{}, e
+	}
+	return &nodegrpc.CommandResponse{Success: true, Data: ""}, nil
 }
 
 func (s *GrpcServer) Del(ctx context.Context, command *nodegrpc.Command) (*nodegrpc.CommandResponse, error) {
-	return nil, nil
+	if e := s.service.delete(command.Key); e != nil {
+		return &nodegrpc.CommandResponse{}, e
+	}
+	return &nodegrpc.CommandResponse{Success: true, Data: ""}, nil
 }
 
 func StartServer() {
-	simpleCache := NewSimpleCache()
+	simpleCache := adaptors.NewSimpleCache()
 	srv := &cacheService{
 		cache: simpleCache,
 	}
@@ -67,18 +77,19 @@ func StartServer() {
 
 // RegisterMe tries to register this node on the `Discovery` server
 func RegisterMe() error {
-	conn, err := googleGrpc.Dial("127.0.0.1:7100", googleGrpc.WithTransportCredentials(insecure.NewCredentials()))
+	discoveryAddr := viper.GetString("discovery.ip") + viper.GetString("discovery.port")
+	conn, err := googleGrpc.Dial(viper.GetString(discoveryAddr), googleGrpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return err
 	}
 	client := grpc2.NewDiscoveryApiClient(conn)
 
-	// TODO get the discovery address from config
+	// TODO: Handle default values, handle errors when the config is not available
 	n := grpc2.Node{
-		Name:    "node-1",
-		Host:    "127.0.0.1",
-		Port:    8101,
-		RamSize: 1024,
+		Name:    viper.GetString("node.name"),
+		Host:    viper.GetString("node.ip"),
+		Port:    viper.GetInt32("node.port"),
+		RamSize: viper.GetInt32("node.ram_size"),
 	}
 	response, err := client.Register(context.Background(), &n)
 	if err != nil {

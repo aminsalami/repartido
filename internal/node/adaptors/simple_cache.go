@@ -1,26 +1,23 @@
-package node
+package adaptors
 
 import (
 	"fmt"
+	"github.com/aminsalami/repartido/internal/node/ports"
 	"go.uber.org/zap"
 )
 
 // -----------------------------------------------------------------
 
-var logger *zap.Logger
+var logger = zap.NewExample().Sugar()
 
-// SimpleCache implements ICache
+// SimpleCache implements node.ICache
 type SimpleCache struct {
 	data map[string]string
 }
 
 // -----------------------------------------------------------------
 
-func init() {
-	logger, _ = zap.NewDevelopment()
-}
-
-func NewSimpleCache() ICache {
+func NewSimpleCache() ports.ICache {
 	return &SimpleCache{
 		make(map[string]string),
 	}
@@ -36,6 +33,7 @@ func (c *SimpleCache) Get(key string) (string, error) {
 
 func (c *SimpleCache) Put(key, value string) error {
 	c.data[key] = value
+	logger.Debugw("New key/value", "key", key, "value", value)
 	return nil
 }
 
