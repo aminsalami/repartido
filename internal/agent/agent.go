@@ -44,7 +44,7 @@ type Agent struct {
 
 	ring *ring.Ring[*NodeInfo]
 
-	discoveryClient discovery.DiscoveryApiClient
+	discoveryClient discovery.DiscoveryClient
 	// HashManager creates a key(aka hash-string) to be used to find out which connector is holding the data
 	HashManager   ports.HashManager
 	RequestParser ports.RequestParser
@@ -193,7 +193,7 @@ func (agent *Agent) setupDiscovery() {
 	if err != nil {
 		logger.Fatal(err.Error())
 	}
-	cli := discovery.NewDiscoveryApiClient(conn)
+	cli := discovery.NewDiscoveryClient(conn)
 	agent.discoveryClient = cli
 	logger.Info("Successfully connected to the discovery server.")
 }
@@ -206,25 +206,26 @@ func (agent *Agent) updateRing() {
 	}
 
 	// TODO: Allow working with 1 node in experimental mode (from config or --experimental)
-	if len(resp.Statuses) < 2 && !viper.GetBool("development") {
+	if len(resp.Nodes) < 2 && !viper.GetBool("development") {
 		logger.Fatal("Cannot initialize the agent. Insufficient number of nodes."+
 			"At least 2 distributed node is needed to gain a reliable cache system.",
-			len(resp.Statuses))
+			len(resp.Nodes))
 	}
 
+	agent.ring.Lock()
 	// Add nodes received from discovery server
-	for _, node := range resp.Statuses {
+	for _, node := range resp.Nodes {
 		n := NodeInfo{
-			Name: node.Name,
-			Addr: node.Host + ":" + strconv.Itoa(int(node.Port)),
+			Id:   node.Info.Id,
+			Name: node.Info.Name,
+			Addr: node.Info.Host + ":" + strconv.Itoa(int(node.Info.Port)),
 			grpc: nil,
 		}
-		agent.ring.Lock()
 		for _, v := range node.Vnumbers {
 			agent.ring.Add(int(v), &n)
 		}
-		agent.ring.Unlock()
 		logger.Debugw("New NodeInfo.", "name", n.Name, "Addr", n.Addr, "virtual node ids", node.Vnumbers)
 	}
-	logger.Infow("Successfully initialized the ring.", "# of real nodes", len(resp.Statuses))
+	agent.ring.Unlock()
+	logger.Infow("Successfully initialized the ring.", "# of real nodes", len(resp.Nodes))
 }

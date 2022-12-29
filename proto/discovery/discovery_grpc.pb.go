@@ -18,194 +18,194 @@ import (
 // Requires gRPC-Go v1.32.0 or later.
 const _ = grpc.SupportPackageIsVersion7
 
-// DiscoveryApiClient is the client API for DiscoveryApi service.
+// DiscoveryClient is the client API for Discovery service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
-type DiscoveryApiClient interface {
-	Get(ctx context.Context, in *StatusRequest, opts ...grpc.CallOption) (*StatusResponse, error)
-	GetRing(ctx context.Context, in *Empty, opts ...grpc.CallOption) (*StatusListResponse, error)
-	Register(ctx context.Context, in *Node, opts ...grpc.CallOption) (*Response, error)
-	Unregister(ctx context.Context, in *Empty, opts ...grpc.CallOption) (*Response, error)
+type DiscoveryClient interface {
+	Get(ctx context.Context, in *NodeId, opts ...grpc.CallOption) (*NodeInfo, error)
+	GetRing(ctx context.Context, in *Empty, opts ...grpc.CallOption) (*RingListResponse, error)
+	Register(ctx context.Context, in *NodeInfo, opts ...grpc.CallOption) (*Response, error)
+	Unregister(ctx context.Context, in *NodeId, opts ...grpc.CallOption) (*Response, error)
 }
 
-type discoveryApiClient struct {
+type discoveryClient struct {
 	cc grpc.ClientConnInterface
 }
 
-func NewDiscoveryApiClient(cc grpc.ClientConnInterface) DiscoveryApiClient {
-	return &discoveryApiClient{cc}
+func NewDiscoveryClient(cc grpc.ClientConnInterface) DiscoveryClient {
+	return &discoveryClient{cc}
 }
 
-func (c *discoveryApiClient) Get(ctx context.Context, in *StatusRequest, opts ...grpc.CallOption) (*StatusResponse, error) {
-	out := new(StatusResponse)
-	err := c.cc.Invoke(ctx, "/discoveryApi/get", in, out, opts...)
+func (c *discoveryClient) Get(ctx context.Context, in *NodeId, opts ...grpc.CallOption) (*NodeInfo, error) {
+	out := new(NodeInfo)
+	err := c.cc.Invoke(ctx, "/discovery/get", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *discoveryApiClient) GetRing(ctx context.Context, in *Empty, opts ...grpc.CallOption) (*StatusListResponse, error) {
-	out := new(StatusListResponse)
-	err := c.cc.Invoke(ctx, "/discoveryApi/getRing", in, out, opts...)
+func (c *discoveryClient) GetRing(ctx context.Context, in *Empty, opts ...grpc.CallOption) (*RingListResponse, error) {
+	out := new(RingListResponse)
+	err := c.cc.Invoke(ctx, "/discovery/getRing", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *discoveryApiClient) Register(ctx context.Context, in *Node, opts ...grpc.CallOption) (*Response, error) {
+func (c *discoveryClient) Register(ctx context.Context, in *NodeInfo, opts ...grpc.CallOption) (*Response, error) {
 	out := new(Response)
-	err := c.cc.Invoke(ctx, "/discoveryApi/register", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/discovery/register", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *discoveryApiClient) Unregister(ctx context.Context, in *Empty, opts ...grpc.CallOption) (*Response, error) {
+func (c *discoveryClient) Unregister(ctx context.Context, in *NodeId, opts ...grpc.CallOption) (*Response, error) {
 	out := new(Response)
-	err := c.cc.Invoke(ctx, "/discoveryApi/unregister", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/discovery/unregister", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-// DiscoveryApiServer is the server API for DiscoveryApi service.
-// All implementations must embed UnimplementedDiscoveryApiServer
+// DiscoveryServer is the server API for Discovery service.
+// All implementations must embed UnimplementedDiscoveryServer
 // for forward compatibility
-type DiscoveryApiServer interface {
-	Get(context.Context, *StatusRequest) (*StatusResponse, error)
-	GetRing(context.Context, *Empty) (*StatusListResponse, error)
-	Register(context.Context, *Node) (*Response, error)
-	Unregister(context.Context, *Empty) (*Response, error)
-	mustEmbedUnimplementedDiscoveryApiServer()
+type DiscoveryServer interface {
+	Get(context.Context, *NodeId) (*NodeInfo, error)
+	GetRing(context.Context, *Empty) (*RingListResponse, error)
+	Register(context.Context, *NodeInfo) (*Response, error)
+	Unregister(context.Context, *NodeId) (*Response, error)
+	mustEmbedUnimplementedDiscoveryServer()
 }
 
-// UnimplementedDiscoveryApiServer must be embedded to have forward compatible implementations.
-type UnimplementedDiscoveryApiServer struct {
+// UnimplementedDiscoveryServer must be embedded to have forward compatible implementations.
+type UnimplementedDiscoveryServer struct {
 }
 
-func (UnimplementedDiscoveryApiServer) Get(context.Context, *StatusRequest) (*StatusResponse, error) {
+func (UnimplementedDiscoveryServer) Get(context.Context, *NodeId) (*NodeInfo, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Get not implemented")
 }
-func (UnimplementedDiscoveryApiServer) GetRing(context.Context, *Empty) (*StatusListResponse, error) {
+func (UnimplementedDiscoveryServer) GetRing(context.Context, *Empty) (*RingListResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetRing not implemented")
 }
-func (UnimplementedDiscoveryApiServer) Register(context.Context, *Node) (*Response, error) {
+func (UnimplementedDiscoveryServer) Register(context.Context, *NodeInfo) (*Response, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Register not implemented")
 }
-func (UnimplementedDiscoveryApiServer) Unregister(context.Context, *Empty) (*Response, error) {
+func (UnimplementedDiscoveryServer) Unregister(context.Context, *NodeId) (*Response, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Unregister not implemented")
 }
-func (UnimplementedDiscoveryApiServer) mustEmbedUnimplementedDiscoveryApiServer() {}
+func (UnimplementedDiscoveryServer) mustEmbedUnimplementedDiscoveryServer() {}
 
-// UnsafeDiscoveryApiServer may be embedded to opt out of forward compatibility for this service.
-// Use of this interface is not recommended, as added methods to DiscoveryApiServer will
+// UnsafeDiscoveryServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to DiscoveryServer will
 // result in compilation errors.
-type UnsafeDiscoveryApiServer interface {
-	mustEmbedUnimplementedDiscoveryApiServer()
+type UnsafeDiscoveryServer interface {
+	mustEmbedUnimplementedDiscoveryServer()
 }
 
-func RegisterDiscoveryApiServer(s grpc.ServiceRegistrar, srv DiscoveryApiServer) {
-	s.RegisterService(&DiscoveryApi_ServiceDesc, srv)
+func RegisterDiscoveryServer(s grpc.ServiceRegistrar, srv DiscoveryServer) {
+	s.RegisterService(&Discovery_ServiceDesc, srv)
 }
 
-func _DiscoveryApi_Get_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(StatusRequest)
+func _Discovery_Get_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(NodeId)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(DiscoveryApiServer).Get(ctx, in)
+		return srv.(DiscoveryServer).Get(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/discoveryApi/get",
+		FullMethod: "/discovery/get",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(DiscoveryApiServer).Get(ctx, req.(*StatusRequest))
+		return srv.(DiscoveryServer).Get(ctx, req.(*NodeId))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _DiscoveryApi_GetRing_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _Discovery_GetRing_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(Empty)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(DiscoveryApiServer).GetRing(ctx, in)
+		return srv.(DiscoveryServer).GetRing(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/discoveryApi/getRing",
+		FullMethod: "/discovery/getRing",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(DiscoveryApiServer).GetRing(ctx, req.(*Empty))
+		return srv.(DiscoveryServer).GetRing(ctx, req.(*Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _DiscoveryApi_Register_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(Node)
+func _Discovery_Register_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(NodeInfo)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(DiscoveryApiServer).Register(ctx, in)
+		return srv.(DiscoveryServer).Register(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/discoveryApi/register",
+		FullMethod: "/discovery/register",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(DiscoveryApiServer).Register(ctx, req.(*Node))
+		return srv.(DiscoveryServer).Register(ctx, req.(*NodeInfo))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _DiscoveryApi_Unregister_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(Empty)
+func _Discovery_Unregister_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(NodeId)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(DiscoveryApiServer).Unregister(ctx, in)
+		return srv.(DiscoveryServer).Unregister(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/discoveryApi/unregister",
+		FullMethod: "/discovery/unregister",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(DiscoveryApiServer).Unregister(ctx, req.(*Empty))
+		return srv.(DiscoveryServer).Unregister(ctx, req.(*NodeId))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-// DiscoveryApi_ServiceDesc is the grpc.ServiceDesc for DiscoveryApi service.
+// Discovery_ServiceDesc is the grpc.ServiceDesc for Discovery service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
-var DiscoveryApi_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "discoveryApi",
-	HandlerType: (*DiscoveryApiServer)(nil),
+var Discovery_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "discovery",
+	HandlerType: (*DiscoveryServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
 			MethodName: "get",
-			Handler:    _DiscoveryApi_Get_Handler,
+			Handler:    _Discovery_Get_Handler,
 		},
 		{
 			MethodName: "getRing",
-			Handler:    _DiscoveryApi_GetRing_Handler,
+			Handler:    _Discovery_GetRing_Handler,
 		},
 		{
 			MethodName: "register",
-			Handler:    _DiscoveryApi_Register_Handler,
+			Handler:    _Discovery_Register_Handler,
 		},
 		{
 			MethodName: "unregister",
-			Handler:    _DiscoveryApi_Unregister_Handler,
+			Handler:    _Discovery_Unregister_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
