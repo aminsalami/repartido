@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"github.com/aminsalami/repartido/internal/node/adaptors"
-	grpc2 "github.com/aminsalami/repartido/proto/discovery"
+	discoveryGrpc "github.com/aminsalami/repartido/proto/discovery"
 	nodegrpc "github.com/aminsalami/repartido/proto/node"
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
@@ -61,10 +61,11 @@ func StartServer() {
 		logger.Fatal(err.Error())
 	}
 	// Register on `discovery server`
-	err = RegisterMe()
+	id, err := RegisterMe()
 	if err != nil {
 		logger.Fatal(err.Error())
 	}
+	srv.id = id
 
 	logger.Info("Starting cache server...")
 	grpcServer := googleGrpc.NewServer()
@@ -76,16 +77,16 @@ func StartServer() {
 }
 
 // RegisterMe tries to register this node on the `Discovery` server
-func RegisterMe() error {
-	discoveryAddr := viper.GetString("discovery.ip") + viper.GetString("discovery.port")
-	conn, err := googleGrpc.Dial(viper.GetString(discoveryAddr), googleGrpc.WithTransportCredentials(insecure.NewCredentials()))
+func RegisterMe() (string, error) {
+	discoveryAddr := viper.GetString("discovery.ip") + ":" + viper.GetString("discovery.port")
+	conn, err := googleGrpc.Dial(discoveryAddr, googleGrpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
-		return err
+		return "", err
 	}
-	client := grpc2.NewDiscoveryApiClient(conn)
+	client := discoveryGrpc.NewDiscoveryClient(conn)
 
 	// TODO: Handle default values, handle errors when the config is not available
-	n := grpc2.Node{
+	n := discoveryGrpc.NodeInfo{
 		Name:    viper.GetString("node.name"),
 		Host:    viper.GetString("node.ip"),
 		Port:    viper.GetInt32("node.port"),
@@ -93,11 +94,12 @@ func RegisterMe() error {
 	}
 	response, err := client.Register(context.Background(), &n)
 	if err != nil {
-		return err
+		return "", err
 	}
 	if !response.Ok {
-		return errors.New("Discovery server refused to register. msg:" + response.Message)
+		return "", errors.New("Discovery server refused to register. msg:" + response.Message)
 	}
-	logger.Info("Successfully registered on discovery.")
-	return nil
+	logger.Info("Successfully registered on discovery")
+	logger.Info("NODE ID: " + response.Message)
+	return response.Message, nil
 }

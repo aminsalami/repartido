@@ -201,3 +201,4 @@ discovery.conf
 node.conf
 *.db.sql
 *.sql.db
+discovery.db

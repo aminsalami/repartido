@@ -1,3 +1,4 @@
+--migrate:up
 create table if not exists cache_node
 (
     id        integer PRIMARY KEY,

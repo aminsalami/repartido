@@ -12,7 +12,7 @@ var nodeCmd = &cobra.Command{
 	Long:  "Go away!",
 }
 var startNode = &cobra.Command{
-	Use:   "start",
+	Use:   "run",
 	Short: "start node/cache server",
 	Long:  "...",
 	Run: func(cmd *cobra.Command, args []string) {

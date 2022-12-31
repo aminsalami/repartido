@@ -5,13 +5,12 @@ import (
 	"github.com/aminsalami/repartido/internal/discovery"
 	"github.com/aminsalami/repartido/internal/discovery/ports"
 	"github.com/aminsalami/repartido/internal/ring"
+	"github.com/google/uuid"
 	"go.uber.org/zap"
 	"math/rand"
-	"sync"
+	"strconv"
 	"time"
 )
-
-var once1 sync.Once
 
 type cacheService struct {
 	ring    *ring.Ring[*discovery.CacheNode]
@@ -27,13 +26,11 @@ func init() {
 
 // ------------------------------------------------------
 
-func NewCacheService(storage ports.CacheStorage) *cacheService {
-	once1.Do(func() {
-		cs = cacheService{
-			storage: storage,
-			ring:    ring.NewRing[*discovery.CacheNode](),
-		}
-	})
+func newCacheService(storage ports.CacheStorage) *cacheService {
+	cs = cacheService{
+		storage: storage,
+		ring:    ring.NewRing[*discovery.CacheNode](),
+	}
 	return &cs
 }
 
@@ -56,6 +53,9 @@ func (service *cacheService) registerNode(node *discovery.CacheNode) error {
 		"Registering a new CacheNode",
 		zap.String("name", node.Name), zap.String("host", node.Host), zap.Int32("port", node.Port),
 	)
+	// Assign a new unique ID to this node
+	node.Id = node.Host + strconv.Itoa(int(node.Port)) + "--" + uuid.New().String()
+
 	// Save the node
 	if err := service.storage.Save(node); err != nil {
 		return err
@@ -92,15 +92,25 @@ func (service *cacheService) registerNode(node *discovery.CacheNode) error {
 	return nil
 }
 
-func (service *cacheService) unregisterNode(node *discovery.CacheNode) error {
+func (service *cacheService) unregisterNode(id string) error {
 	service.ring.Lock()
 	defer service.ring.Unlock()
+	node, err := service.storage.GetById(id)
+	if err != nil {
+		msg := "node not found on the storage"
+		logger.Errorw(msg, "id", id)
+		return errors.New(msg)
+	}
 	removed := service.ring.Remove(node)
 	if len(removed) == 0 {
-		return errors.New("cannot remove an unknown node")
+		msg := "node not found on the ring"
+		logger.Errorw(msg, "node_id", id)
+		return errors.New(msg)
 	}
 
-	service.storage.Delete(node)
+	if err := service.storage.Delete(node); err != nil {
+		return err
+	}
 	uniqueNodes := service.ring.GetUniques()
 	if len(uniqueNodes) == 0 { // It means the ring became empty because the deleted node was the last one!
 		return nil

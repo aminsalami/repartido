@@ -5,7 +5,6 @@ import (
 	"github.com/aminsalami/repartido/internal/discovery"
 	"github.com/aminsalami/repartido/internal/discovery/adaptors"
 	grpc "github.com/aminsalami/repartido/proto/discovery"
-	"github.com/google/uuid"
 	"go.uber.org/zap"
 	googleGrpc "google.golang.org/grpc"
 	"net"
@@ -54,7 +53,6 @@ func (s DiscoveryServer) GetRing(ctx context.Context, _ *grpc.Empty) (*grpc.Ring
 func (s DiscoveryServer) Register(ctx context.Context, node *grpc.NodeInfo) (*grpc.Response, error) {
 	// Create a node entity and register it
 	cn := discovery.CacheNode{
-		Id:       node.Host + "--" + uuid.New().String(),
 		Name:     node.Name,
 		Host:     node.Host,
 		Port:     node.Port,
@@ -67,21 +65,24 @@ func (s DiscoveryServer) Register(ctx context.Context, node *grpc.NodeInfo) (*gr
 	return &grpc.Response{Ok: true, Message: cn.Id}, nil
 }
 
-func (s DiscoveryServer) Unregister(ctx context.Context, id *grpc.NodeId) (*grpc.Response, error) {
-	return nil, nil
+func (s DiscoveryServer) Unregister(ctx context.Context, nodeId *grpc.NodeId) (*grpc.Response, error) {
+	if err := s.cacheService.unregisterNode(nodeId.Id); err != nil {
+		return &grpc.Response{Ok: false, Message: err.Error()}, err
+	}
+	return &grpc.Response{Ok: true, Message: ""}, nil
 }
 
 func StartServer() {
-	l, err := net.Listen("tcp", "localhost:7100")
-	if err != nil {
-		logger.Fatal(err.Error())
-	}
-
-	logger.Info("Starting discovery server on port 7100")
 	// Create a new storage adaptor: sqlite
 	sqliteStorage := adaptors.NewSqliteCacheStorage()
 	s := &DiscoveryServer{
-		cacheService: NewCacheService(sqliteStorage),
+		cacheService: newCacheService(sqliteStorage),
+	}
+
+	logger.Info("Starting discovery server on port 7100")
+	l, err := net.Listen("tcp", "localhost:7100")
+	if err != nil {
+		logger.Fatal(err.Error())
 	}
 
 	grpcServer := googleGrpc.NewServer()

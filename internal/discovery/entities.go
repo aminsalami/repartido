@@ -18,6 +18,7 @@ type CacheNode struct {
 	//Conn CacheNodeAPI
 }
 
+// Hash generates a unique string from the node data.
 func (n *CacheNode) Hash() string {
 	return n.Id + n.Host + ":" + strconv.Itoa(int(n.Port))
 }

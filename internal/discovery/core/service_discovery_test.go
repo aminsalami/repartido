@@ -21,6 +21,10 @@ func (m *mockedStorage) Get() (discovery.CacheNode, error) {
 	return discovery.CacheNode{}, nil
 }
 
+func (m *mockedStorage) GetById(id string) (*discovery.CacheNode, error) {
+	return m.db[id], nil
+}
+
 func (m *mockedStorage) List() (result []*discovery.CacheNode, e error) {
 	for _, v := range m.db {
 		result = append(result, v)
@@ -47,7 +51,7 @@ func (m *mockedStorage) Clear() {
 // We expect all virtual-nodes (from 0 to 256) will be assigned to this server!
 func TestRegister_ForTheFirstTime(t *testing.T) {
 	storage := &mockedStorage{db: make(map[string]*discovery.CacheNode)}
-	service := NewCacheService(storage)
+	service := newCacheService(storage)
 	node1 := discovery.CacheNode{
 		Id:       "node-1",
 		Name:     "node-name-1",
@@ -75,7 +79,7 @@ func TestRegister_ForTheFirstTime(t *testing.T) {
 // Test duplicate register/unregister calls
 func TestRegister_RegisterUnregister(t *testing.T) {
 	storage := &mockedStorage{db: make(map[string]*discovery.CacheNode)}
-	service := NewCacheService(storage)
+	service := newCacheService(storage)
 	node1 := discovery.CacheNode{
 		Id:       "node-1",
 		Name:     "node-name-1",
@@ -92,12 +96,12 @@ func TestRegister_RegisterUnregister(t *testing.T) {
 	assert.Error(t, err)
 	assert.Len(t, storage.db, 1)
 
-	err = service.unregisterNode(&node1)
+	err = service.unregisterNode(node1.Id)
 	assert.NoError(t, err)
 	assert.Len(t, storage.db, 0)
 	assert.Len(t, service.getVirtualNodes(), 0)
 
 	// Try to unregister again
-	err = service.unregisterNode(&node1)
+	err = service.unregisterNode(node1.Id)
 	assert.Error(t, err)
 }

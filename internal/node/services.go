@@ -4,6 +4,7 @@ import "github.com/aminsalami/repartido/internal/node/ports"
 
 type cacheService struct {
 	cache ports.ICache
+	id    string
 }
 
 func (s *cacheService) getKey(key string) (string, error) {
