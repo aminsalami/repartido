@@ -2,20 +2,20 @@ package agent
 
 import (
 	"context"
-	"encoding/hex"
-	"fmt"
+	"errors"
 	"github.com/aminsalami/repartido/internal/agent/adaptors"
 	"github.com/aminsalami/repartido/internal/agent/entities"
 	"github.com/aminsalami/repartido/internal/agent/ports"
 	"github.com/aminsalami/repartido/internal/ring"
 	"github.com/aminsalami/repartido/proto/discovery"
-	connector "github.com/aminsalami/repartido/proto/node"
+	nodeGrpc "github.com/aminsalami/repartido/proto/node"
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
-	"net/http"
 	"strconv"
+	"sync"
+	"time"
 )
 
 var logger = zap.NewExample().Sugar()
@@ -28,7 +28,7 @@ type NodeInfo struct {
 	Addr string
 
 	// A gRPC connection to node
-	grpc connector.CommandApiClient
+	grpc nodeGrpc.CommandApiClient
 }
 
 func (n *NodeInfo) Hash() string {
@@ -37,83 +37,110 @@ func (n *NodeInfo) Hash() string {
 
 // Agent is standing between clients and nodes. Provides an interface for clients
 // to get(or set) data from(or to) the right node.
+// Implements ports.IAgent
 type Agent struct {
-	// Address in the form of "host:port"
-	// Default "0.0.0.0:6000"
-	Addr string
-
 	ring *ring.Ring[*NodeInfo]
 
 	discoveryClient discovery.DiscoveryClient
 	// HashManager creates a key(aka hash-string) to be used to find out which connector is holding the data
-	HashManager   ports.HashManager
-	RequestParser ports.RequestParser
+	HashManager ports.HashManager
+	sync.RWMutex
 }
 
 // -----------------------------------------------------------------
 
 func NewDefaultAgent() Agent {
-	return NewAgent(adaptors.NewMd5HashManager(), "0.0.0.0:6000")
+	return NewAgent(adaptors.NewMd5HashManager())
 }
 
-func NewAgent(hm ports.HashManager, addr string) Agent {
+func NewAgent(hm ports.HashManager) Agent {
 	// TODO: Start listening on the port
 	return Agent{
-		Addr: addr,
-
-		ring:          ring.NewRing[*NodeInfo](),
-		HashManager:   hm,
-		RequestParser: adaptors.NewRestParser(),
+		ring:        ring.NewRing[*NodeInfo](),
+		HashManager: hm,
 	}
 }
 
-func (agent *Agent) LocateNodeByKey(key []byte) (*NodeInfo, error) {
+// -----------------------------------------------------------------
+
+func (agent *Agent) LocateNodeByHash(key []byte) (*NodeInfo, error) {
 	// position is a number from 0 to 128. Every number indicates a virtual server.
 	position := agent.HashManager.IntFromHash(key)
 	// TODO: Check if there is exactly one node from 0 to 127
 	return agent.ring.Get(position), nil
 }
 
-func (agent *Agent) RetrieveData(data string) (string, error) {
-	key := agent.HashManager.Hash(data)
-	nodeInfo, err := agent.LocateNodeByKey(key)
+func (agent *Agent) RetrieveData(request entities.ParsedRequest) (string, error) {
+	hash := agent.HashManager.Hash(request.Data)
+	nodeInfo, err := agent.LocateNodeByHash(hash)
 	if err != nil {
 		return "", err
 	}
 
 	// Create a gRPC request and send it to node
-	c := connector.Command{
-		Cmd: connector.Cmd_GET,
-		Key: hex.EncodeToString(key),
+	c := nodeGrpc.Command{
+		Cmd: nodeGrpc.Cmd_GET,
+		Key: request.Key,
 	}
 	res, err := nodeInfo.grpc.Get(context.Background(), &c)
 
+	// TODO: wrap response using errors, this is a 500 error code, provide details
 	if err != nil {
 		return "", err
+	}
+	if !res.Success {
+		return "", errors.New(res.Data)
 	}
 
 	return res.Data, err
 }
 
-func (agent *Agent) StoreData(data string) error {
-	key := agent.HashManager.Hash(data)
-	nodeInfo, err := agent.LocateNodeByKey(key)
+func (agent *Agent) StoreData(request entities.ParsedRequest) error {
+	hash := agent.HashManager.Hash(request.Data)
+	nodeInfo, err := agent.LocateNodeByHash(hash)
 	if err != nil {
 		return err
 	}
 
-	c := connector.Command{
-		Cmd:  connector.Cmd_SET,
-		Key:  hex.EncodeToString(key),
-		Data: data,
+	c := nodeGrpc.Command{
+		Cmd:  nodeGrpc.Cmd_SET,
+		Key:  request.Key,
+		Data: request.Data,
 	}
-	r, err := nodeInfo.grpc.Set(context.Background(), &c)
+	response, err := nodeInfo.grpc.Set(context.Background(), &c)
+	// TODO: wrap response using errors, this is a 500 error code, provide details
 	if err != nil {
 		return err
 	}
-	if !r.Success {
-		return fmt.Errorf(r.Data)
+	if !response.Success {
+		return errors.New(response.Data)
 	}
+	return nil
+}
+
+func (agent *Agent) DeleteData(request entities.ParsedRequest) error {
+	hash := agent.HashManager.Hash(request.Data)
+	node, err := agent.LocateNodeByHash(hash)
+	if err != nil {
+		return err
+	}
+	c := nodeGrpc.Command{
+		Cmd:  nodeGrpc.Cmd_DEL,
+		Key:  request.Key,
+		Data: request.Data,
+	}
+	response, err := node.grpc.Del(context.Background(), &c)
+	// TODO: wrap response using errors, this is a 500 error code, provide details
+	if err != nil {
+		return err
+	}
+	if !response.Success {
+		return errors.New(response.Data)
+	}
+	return nil
+}
+
+func (agent *Agent) GetRing(request entities.ParsedRequest) error {
 	return nil
 }
 
@@ -127,60 +154,12 @@ func (agent *Agent) StoreData(data string) error {
 // The first idea was to implement on top of tcp connector with a simple customized protocol.
 // However, It is unnecessary for now. We can rely on http to pass our customized messages.
 func (agent *Agent) Start() {
-	// Step-1 Start communication with the "Controller (aka discovery)"
+	// Step-1 Start communicating with the "Controller (aka discovery)"
 	agent.setupDiscovery()
 	agent.updateRing()
 
-	// Step-2 Start receiving commands from the clients
-	mux := http.NewServeMux()
-	mux.HandleFunc("/data", agent.dataHandler)
-	mux.HandleFunc("/commands", agent.commandsHandler)
-	logger.Info("Started listening on " + agent.Addr)
-	err := http.ListenAndServe(agent.Addr, mux)
-	if err != nil {
-		logger.Fatal(err.Error())
-	}
-}
-
-func (agent *Agent) dataHandler(rw http.ResponseWriter, req *http.Request) {
-	parsedRequest := entities.ParsedRequest{}
-	err := agent.RequestParser.Parse(req, &parsedRequest)
-	if err != nil {
-		logger.Error(err.Error())
-		return
-	}
-
-	// Handle commands based on parsedRequest
-	switch parsedRequest.Command {
-	case entities.GET:
-		res := agent.handleGetCommand(parsedRequest)
-		rw.Write([]byte(res))
-	case entities.SET:
-		res := agent.handleSetCommand(parsedRequest)
-		rw.Write([]byte(res))
-	default:
-		rw.Write([]byte("FUCK YOU EZEKIEL!"))
-	}
-}
-
-func (agent *Agent) commandsHandler(rw http.ResponseWriter, r *http.Request) {
-	// TODO: Implement
-}
-
-// -----------------------------------------------------------------
-
-func (agent *Agent) handleGetCommand(request entities.ParsedRequest) string {
-	result, err := agent.RetrieveData(request.Key)
-	if err != nil {
-		logger.Error(err.Error())
-		return err.Error()
-	}
-	//return "GET Key was:" + " -- " + request.Key
-	return result
-}
-
-func (agent *Agent) handleSetCommand(request entities.ParsedRequest) string {
-	return "SET Key was:" + " -- " + request.Key
+	// Try to initialize a grpc connection for every node received from the discovery
+	agent.setupConnections()
 }
 
 func (agent *Agent) setupDiscovery() {
@@ -189,10 +168,11 @@ func (agent *Agent) setupDiscovery() {
 	if dhost == "" || dport == "" {
 		logger.Fatal("Discovery host & port is required. Check the config file.")
 	}
-	conn, err := grpc.Dial(dhost+":"+dport, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.Dial(dhost+":"+dport, grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithBlock())
 	if err != nil {
 		logger.Fatal(err.Error())
 	}
+	// TODO: Handle the reconnect scenario based on state using conn.WaitForStateChange()
 	cli := discovery.NewDiscoveryClient(conn)
 	agent.discoveryClient = cli
 	logger.Info("Successfully connected to the discovery server.")
@@ -228,4 +208,37 @@ func (agent *Agent) updateRing() {
 	}
 	agent.ring.Unlock()
 	logger.Infow("Successfully initialized the ring.", "# of real nodes", len(resp.Nodes))
+}
+
+// dialUp creates a new grpc connection
+func (agent *Agent) setupConnections() {
+	logger.Infow("Trying to setup a grpc connection to real nodes...")
+	nodes := agent.ring.GetUniques()
+	logger.Infow("Trying to setup a grpc connection to real nodes...", "# nodes", len(nodes))
+	wg := sync.WaitGroup{}
+
+	for _, node := range nodes {
+		go func(n *NodeInfo) {
+			wg.Add(1)
+			// Connect for the first time
+			ctx, cancelFun := context.WithTimeout(context.Background(), time.Second*2)
+			defer cancelFun()
+			conn, err := grpc.DialContext(ctx, n.Addr, grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithBlock())
+			if err != nil {
+				logger.Errorw("Failed to setup grpc connection to node", "node_id", n.Id, "err_msg", err.Error())
+				go agent.recoverNode(n)
+				wg.Done()
+				return
+			}
+			n.grpc = nodeGrpc.NewCommandApiClient(conn)
+			logger.Info("Successfully connected to node " + n.Id)
+			wg.Done()
+		}(node)
+	}
+	wg.Wait()
+}
+
+func (agent *Agent) recoverNode(node *NodeInfo) {
+	logger.Infow("Trying to recover node connection", "node_id", node.Id)
+	return
 }

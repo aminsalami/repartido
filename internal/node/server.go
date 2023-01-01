@@ -33,10 +33,13 @@ func (s *GrpcServer) Get(ctx context.Context, command *nodegrpc.Command) (*nodeg
 }
 
 func (s *GrpcServer) Set(ctx context.Context, command *nodegrpc.Command) (*nodegrpc.CommandResponse, error) {
+	if command.Data == "" || command.Key == "" {
+		return &nodegrpc.CommandResponse{Success: false, Data: ""}, errors.New("empty key/vaue is not allowed")
+	}
 	if e := s.service.set(command.Key, command.Data); e != nil {
 		return &nodegrpc.CommandResponse{}, e
 	}
-	return &nodegrpc.CommandResponse{Success: true, Data: ""}, nil
+	return &nodegrpc.CommandResponse{Success: true, Data: "Success"}, nil
 }
 
 func (s *GrpcServer) Del(ctx context.Context, command *nodegrpc.Command) (*nodegrpc.CommandResponse, error) {
@@ -56,7 +59,12 @@ func StartServer() {
 	}
 
 	// TODO from config
-	l, err := net.Listen("tcp", "localhost:8100")
+	host := viper.GetString("node.host")
+	port := viper.GetString("node.port")
+	if host == "" || port == "" {
+		logger.Fatalf("node.host and node.port is required")
+	}
+	l, err := net.Listen("tcp", host+":"+port)
 	if err != nil {
 		logger.Fatal(err.Error())
 	}
@@ -88,7 +96,7 @@ func RegisterMe() (string, error) {
 	// TODO: Handle default values, handle errors when the config is not available
 	n := discoveryGrpc.NodeInfo{
 		Name:    viper.GetString("node.name"),
-		Host:    viper.GetString("node.ip"),
+		Host:    viper.GetString("node.host"),
 		Port:    viper.GetInt32("node.port"),
 		RamSize: viper.GetInt32("node.ram_size"),
 	}

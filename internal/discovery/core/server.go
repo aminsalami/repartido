@@ -59,6 +59,7 @@ func (s DiscoveryServer) Register(ctx context.Context, node *grpc.NodeInfo) (*gr
 		LastPing: time.Now().Format(time.RFC3339),
 		RamSize:  node.RamSize,
 	}
+	// TODO: Validate cache-node values using validator/v10
 	if err := s.cacheService.registerNode(&cn); err != nil {
 		return &grpc.Response{Ok: false, Message: err.Error()}, err
 	}

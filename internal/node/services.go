@@ -8,7 +8,7 @@ type cacheService struct {
 }
 
 func (s *cacheService) getKey(key string) (string, error) {
-	return key, nil
+	return s.cache.Get(key)
 }
 
 func (s *cacheService) set(key, data string) error {

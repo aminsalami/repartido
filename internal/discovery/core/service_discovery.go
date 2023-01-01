@@ -54,7 +54,7 @@ func (service *cacheService) registerNode(node *discovery.CacheNode) error {
 		zap.String("name", node.Name), zap.String("host", node.Host), zap.Int32("port", node.Port),
 	)
 	// Assign a new unique ID to this node
-	node.Id = node.Host + strconv.Itoa(int(node.Port)) + "--" + uuid.New().String()
+	node.Id = node.Host + ":" + strconv.Itoa(int(node.Port)) + "--" + uuid.New().String()
 
 	// Save the node
 	if err := service.storage.Save(node); err != nil {

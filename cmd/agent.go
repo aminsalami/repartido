@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"github.com/aminsalami/repartido/internal/agent"
+	"github.com/aminsalami/repartido/internal/agent/adaptors/httpHandler"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -26,8 +27,22 @@ var startAgent = &cobra.Command{
 			logger.Fatal("Cannot read the config file. Make sure agent.conf is available.")
 		}
 
-		a := agent.NewDefaultAgent()
-		a.Start()
+		defaultAgent := agent.NewDefaultAgent()
+		host := viper.GetString("agent.host")
+		port := viper.GetString("agent.port")
+		if host == "" {
+			host = "0.0.0.0"
+		}
+		if port == "" {
+			port = "6000"
+		}
+		h := httpHandler.HttpHandler{
+			Addr:  host + ":" + port,
+			Agent: &defaultAgent,
+		}
+
+		defaultAgent.Start()
+		h.Run()
 	},
 }
 
