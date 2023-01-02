@@ -24,6 +24,7 @@ func (s *GrpcServer) Get(ctx context.Context, command *nodegrpc.Command) (*nodeg
 	res, err := s.service.getKey(command.Key)
 	if err != nil {
 		logger.Error(err.Error())
+		return &nodegrpc.CommandResponse{Success: false, Data: err.Error()}, err
 	}
 	response := nodegrpc.CommandResponse{
 		Success: true,
@@ -49,16 +50,24 @@ func (s *GrpcServer) Del(ctx context.Context, command *nodegrpc.Command) (*nodeg
 	return &nodegrpc.CommandResponse{Success: true, Data: ""}, nil
 }
 
-func StartServer() {
+func (s *GrpcServer) SetId(id string) {
+	s.service.id = id
+}
+
+// -----------------------------------------------------------------
+
+func NewServer() *GrpcServer {
 	simpleCache := adaptors.NewSimpleCache()
 	srv := &cacheService{
 		cache: simpleCache,
 	}
-	myServer := GrpcServer{
+	return &GrpcServer{
 		service: srv,
 	}
+}
 
-	// TODO from config
+func StartServer() {
+	myServer := NewServer()
 	host := viper.GetString("node.host")
 	port := viper.GetString("node.port")
 	if host == "" || port == "" {
@@ -73,11 +82,11 @@ func StartServer() {
 	if err != nil {
 		logger.Fatal(err.Error())
 	}
-	srv.id = id
+	myServer.SetId(id)
 
 	logger.Info("Starting cache server...")
 	grpcServer := googleGrpc.NewServer()
-	nodegrpc.RegisterCommandApiServer(grpcServer, &myServer)
+	nodegrpc.RegisterCommandApiServer(grpcServer, myServer)
 	err = grpcServer.Serve(l)
 	if err != nil {
 		logger.Fatal(err.Error())

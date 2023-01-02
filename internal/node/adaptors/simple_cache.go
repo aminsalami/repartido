@@ -1,6 +1,7 @@
 package adaptors
 
 import (
+	"errors"
 	"fmt"
 	"github.com/aminsalami/repartido/internal/node/ports"
 	"go.uber.org/zap"
@@ -38,6 +39,9 @@ func (c *SimpleCache) Put(key, value string) error {
 }
 
 func (c *SimpleCache) Del(key string) error {
+	if _, exists := c.data[key]; !exists {
+		return errors.New("key not found")
+	}
 	delete(c.data, key)
 	return nil
 }

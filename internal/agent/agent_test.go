@@ -2,96 +2,80 @@ package agent
 
 import (
 	"context"
-	"errors"
 	"github.com/aminsalami/repartido/internal/agent/entities"
+	nodepkg "github.com/aminsalami/repartido/internal/node"
 	"github.com/aminsalami/repartido/internal/ring"
 	discoveryGrpc "github.com/aminsalami/repartido/proto/discovery"
 	nodeGrpc "github.com/aminsalami/repartido/proto/node"
-	"github.com/google/uuid"
+	"github.com/brianvoe/gofakeit/v6"
 	"github.com/stretchr/testify/assert"
-	"google.golang.org/grpc"
+	googleGrpc "google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+	"net"
+	"strconv"
 	"testing"
 )
 
 type discoveryClient struct{}
 
-func (d *discoveryClient) Get(ctx context.Context, in *discoveryGrpc.NodeId, opts ...grpc.CallOption) (*discoveryGrpc.NodeInfo, error) {
+func (d *discoveryClient) Get(ctx context.Context, in *discoveryGrpc.NodeId, opts ...googleGrpc.CallOption) (*discoveryGrpc.NodeInfo, error) {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (d *discoveryClient) GetRing(ctx context.Context, in *discoveryGrpc.Empty, opts ...grpc.CallOption) (*discoveryGrpc.RingListResponse, error) {
+func (d *discoveryClient) GetRing(ctx context.Context, in *discoveryGrpc.Empty, opts ...googleGrpc.CallOption) (*discoveryGrpc.RingListResponse, error) {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (d *discoveryClient) Register(ctx context.Context, in *discoveryGrpc.NodeInfo, opts ...grpc.CallOption) (*discoveryGrpc.Response, error) {
+func (d *discoveryClient) Register(ctx context.Context, in *discoveryGrpc.NodeInfo, opts ...googleGrpc.CallOption) (*discoveryGrpc.Response, error) {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (d *discoveryClient) Unregister(ctx context.Context, in *discoveryGrpc.NodeId, opts ...grpc.CallOption) (*discoveryGrpc.Response, error) {
+func (d *discoveryClient) Unregister(ctx context.Context, in *discoveryGrpc.NodeId, opts ...googleGrpc.CallOption) (*discoveryGrpc.Response, error) {
 	//TODO implement me
 	panic("implement me")
 }
 
-type mockedNodeClient struct {
-	cache map[string]string
-}
-
-func (n *mockedNodeClient) Get(ctx context.Context, in *nodeGrpc.Command, opts ...grpc.CallOption) (*nodeGrpc.CommandResponse, error) {
-	d, ok := n.cache[in.Key]
-	if !ok {
-		return &nodeGrpc.CommandResponse{
-			Success: false,
-			Data:    "Not Found!",
-		}, errors.New("not found")
+// CreateNodeServer on localhost and a random port.
+func CreateNodeServer() *NodeInfo {
+	addr := "localhost:" + strconv.Itoa(gofakeit.IntRange(22000, 23000))
+	go func() {
+		nodeServer := nodepkg.NewServer()
+		nodeServer.SetId("SERVER_UNIQUE_ID__" + addr)
+		l, e := net.Listen("tcp", addr)
+		if e != nil {
+			logger.Fatal(e.Error())
+		}
+		grpcServer := googleGrpc.NewServer()
+		nodeGrpc.RegisterCommandApiServer(grpcServer, nodeServer)
+		e = grpcServer.Serve(l)
+		if e != nil {
+			logger.Fatal(e.Error())
+		}
+	}()
+	nodeInfo := NodeInfo{}
+	err := gofakeit.Struct(nodeInfo)
+	if err != nil {
+		logger.Fatal(err.Error())
 	}
-	return &nodeGrpc.CommandResponse{
-		Success: true,
-		Data:    d,
-	}, nil
-
-}
-
-func (n *mockedNodeClient) Set(ctx context.Context, in *nodeGrpc.Command, opts ...grpc.CallOption) (*nodeGrpc.CommandResponse, error) {
-	if in.Key == "" {
-		return &nodeGrpc.CommandResponse{}, errors.New("wrong key/data")
+	conn, err := googleGrpc.Dial(addr, googleGrpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		logger.Fatal(err.Error())
 	}
-	n.cache[in.Key] = in.Data
-	return &nodeGrpc.CommandResponse{
-		Success: true,
-		Data:    "DONE?",
-	}, nil
-}
-
-func (n *mockedNodeClient) Del(ctx context.Context, in *nodeGrpc.Command, opts ...grpc.CallOption) (*nodeGrpc.CommandResponse, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
-func generateRandomNodeInfo() *NodeInfo {
-	return &NodeInfo{
-		Id:   "1.1.1.1:8101--" + uuid.New().String(),
-		Name: "node-1",
-		Addr: "1.1.1.1:8101",
-		grpc: nil,
-	}
+	nodeInfo.grpc = nodeGrpc.NewCommandApiClient(conn)
+	return &nodeInfo
 }
 
 // -----------------------------------------------------------------
 // -----------------------------------------------------------------
 
-func TestSetAndGet(t *testing.T) {
+func TestAgent_SetAndGet(t *testing.T) {
+	node1 := CreateNodeServer()
 	a := NewDefaultAgent()
 	// manually set a discovery client without grpc.Dial() method
 	a.discoveryClient = &discoveryClient{}
-	node1 := &NodeInfo{
-		Id:   "1.1.1.1:8101--" + uuid.New().String(),
-		Name: "node-1",
-		Addr: "1.1.1.1:8101",
-		grpc: &mockedNodeClient{cache: make(map[string]string)},
-	}
 	for i := 0; i < ring.Size; i++ {
 		a.ring.Add(i, node1)
 	}
@@ -112,5 +96,24 @@ func TestSetAndGet(t *testing.T) {
 	r.Key = "amin2"
 	response, err = a.RetrieveData(r)
 	assert.Error(t, err)
-	assert.NotEqual(t, r.Data, response)
+}
+
+func TestAgent_DeleteData(t *testing.T) {
+	node1 := CreateNodeServer()
+
+	// step-1: Delete non-existence key
+	a := NewDefaultAgent()
+	a.discoveryClient = &discoveryClient{}
+
+	for i := 0; i < ring.Size; i++ {
+		a.ring.Add(i, node1)
+	}
+
+	r := entities.ParsedRequest{
+		Command: entities.DEL,
+		Key:     "key-1",
+		Data:    "data-1",
+	}
+	err := a.DeleteData(r)
+	assert.Error(t, err)
 }
