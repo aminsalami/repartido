@@ -12,6 +12,7 @@ import (
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials/insecure"
 	"strconv"
 	"sync"
@@ -28,6 +29,7 @@ type NodeInfo struct {
 	Addr string
 
 	// A gRPC connection to node
+	conn *grpc.ClientConn
 	grpc nodeGrpc.CommandApiClient
 }
 
@@ -172,7 +174,6 @@ func (agent *Agent) setupDiscovery() {
 	if err != nil {
 		logger.Fatal(err.Error())
 	}
-	// TODO: Handle the reconnect scenario based on state using conn.WaitForStateChange()
 	cli := discovery.NewDiscoveryClient(conn)
 	agent.discoveryClient = cli
 	logger.Info("Successfully connected to the discovery server.")
@@ -210,7 +211,7 @@ func (agent *Agent) updateRing() {
 	logger.Infow("Successfully initialized the ring.", "# of real nodes", len(resp.Nodes))
 }
 
-// dialUp creates a new grpc connection
+// setupConnections create a grpc connection for every NodeInfo
 func (agent *Agent) setupConnections() {
 	logger.Infow("Trying to setup a grpc connection to real nodes...")
 	nodes := agent.ring.GetUniques()
@@ -221,16 +222,14 @@ func (agent *Agent) setupConnections() {
 		go func(n *NodeInfo) {
 			wg.Add(1)
 			// Connect for the first time
-			ctx, cancelFun := context.WithTimeout(context.Background(), time.Second*2)
-			defer cancelFun()
-			conn, err := grpc.DialContext(ctx, n.Addr, grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithBlock())
+			err := agent.connect(n)
 			if err != nil {
 				logger.Errorw("Failed to setup grpc connection to node", "node_id", n.Id, "err_msg", err.Error())
 				go agent.recoverNode(n)
 				wg.Done()
 				return
 			}
-			n.grpc = nodeGrpc.NewCommandApiClient(conn)
+			go agent.watchNode(n)
 			logger.Info("Successfully connected to node " + n.Id)
 			wg.Done()
 		}(node)
@@ -241,4 +240,38 @@ func (agent *Agent) setupConnections() {
 func (agent *Agent) recoverNode(node *NodeInfo) {
 	logger.Infow("Trying to recover node connection", "node_id", node.Id)
 	return
+}
+
+// connect to a node and set the `node.grpc` value
+func (agent *Agent) connect(node *NodeInfo) error {
+	logger.Infow("connecting to node", "node_id", node.Id, "addr", node.Addr)
+	ctx, cancelFun := context.WithTimeout(context.Background(), time.Second*2)
+	defer cancelFun()
+	conn, err := grpc.DialContext(ctx, node.Addr, grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithBlock())
+	if err != nil {
+		return err
+	}
+	node.grpc = nodeGrpc.NewCommandApiClient(conn)
+	node.conn = conn
+	return nil
+}
+
+// watchNode watches grpc-connection state
+// Tries to reconnect whenever a connection changes the status to anything other than READY
+// ? Does the grpc handles reconnection
+func (agent *Agent) watchNode(node *NodeInfo) {
+	if node.grpc == nil || node.conn.GetState() != connectivity.Ready {
+		panic("agent: a connection must be set up already")
+	}
+
+	for {
+		node.conn.WaitForStateChange(context.Background(), connectivity.Ready)
+		// state has changed, Try to reconnect
+		err := agent.connect(node)
+		if err != nil {
+			agent.recoverNode(node)
+			logger.Infow("permanently lost connection to node", "node_id", node.Id, "addr", node.Addr)
+			break
+		}
+	}
 }

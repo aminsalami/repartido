@@ -10,7 +10,10 @@ import (
 	"github.com/brianvoe/gofakeit/v6"
 	"github.com/stretchr/testify/assert"
 	googleGrpc "google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/status"
 	"net"
 	"strconv"
 	"testing"
@@ -116,4 +119,47 @@ func TestAgent_DeleteData(t *testing.T) {
 	}
 	err := a.DeleteData(r)
 	assert.Error(t, err)
+}
+
+// Try to test what happens when the grpcServer disconnected while we call a SET method
+func TestAgent_disconnectWhileGettingData(t *testing.T) {
+	addr := "localhost:" + strconv.Itoa(gofakeit.IntRange(22000, 23000))
+	l, e := net.Listen("tcp", addr)
+	if e != nil {
+		logger.Fatal(e.Error())
+	}
+	go func() {
+		nodeServer := nodepkg.NewServer()
+		nodeServer.SetId("SERVER_UNIQUE_ID__" + addr)
+
+		grpcServer := googleGrpc.NewServer()
+		nodeGrpc.RegisterCommandApiServer(grpcServer, nodeServer)
+		_ = grpcServer.Serve(l)
+	}()
+	nodeInfo := &NodeInfo{}
+	err := gofakeit.Struct(nodeInfo)
+	if err != nil {
+		logger.Fatal(err.Error())
+	}
+	conn, err := googleGrpc.Dial(addr, googleGrpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		logger.Fatal(err.Error())
+	}
+	nodeInfo.conn = conn
+	nodeInfo.grpc = nodeGrpc.NewCommandApiClient(conn)
+	// step-1: Delete non-existence key
+	a := NewDefaultAgent()
+	a.discoveryClient = &discoveryClient{}
+	for i := 0; i < ring.Size; i++ {
+		a.ring.Add(i, nodeInfo)
+	}
+
+	// Manually stop the server
+	_ = l.Close()
+	// Try to call a closed server
+	r := entities.ParsedRequest{Command: entities.SET, Key: "amin", Data: "123"}
+	err = a.StoreData(r)
+	assert.Error(t, err)
+	assert.Equal(t, codes.Unavailable, status.Code(err))
+	assert.NotEqual(t, nodeInfo.conn.GetState(), connectivity.Ready)
 }
