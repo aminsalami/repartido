@@ -14,6 +14,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/keepalive"
 	"strconv"
 	"sync"
 	"time"
@@ -218,7 +219,7 @@ func (agent *Agent) setupConnections() {
 	logger.Infow("Trying to setup a grpc connection to real nodes...", "# nodes", len(nodes))
 	wg := sync.WaitGroup{}
 
-	for _, node := range nodes {
+	for node, _ := range nodes {
 		go func(n *NodeInfo) {
 			wg.Add(1)
 			// Connect for the first time
@@ -247,7 +248,11 @@ func (agent *Agent) connect(node *NodeInfo) error {
 	logger.Infow("connecting to node", "node_id", node.Id, "addr", node.Addr)
 	ctx, cancelFun := context.WithTimeout(context.Background(), time.Second*2)
 	defer cancelFun()
-	conn, err := grpc.DialContext(ctx, node.Addr, grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithBlock())
+	keepAliveParam := keepalive.ClientParameters{
+		Time:    time.Duration(10),
+		Timeout: time.Duration(2),
+	}
+	conn, err := grpc.DialContext(ctx, node.Addr, grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithBlock(), grpc.WithKeepaliveParams(keepAliveParam))
 	if err != nil {
 		return err
 	}

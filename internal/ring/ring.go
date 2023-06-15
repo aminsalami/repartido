@@ -6,6 +6,7 @@ import "sync"
 const Size = 256
 
 type Comparable interface {
+	comparable
 	Hash() string
 }
 
@@ -71,16 +72,11 @@ func (r *Ring[K]) All() []K {
 }
 
 // GetUniques returns all the unique values stored on the ring
-func (r *Ring[K]) GetUniques() []K {
-	tmp := make(map[any]struct{})
-	for _, v := range r.vnodes {
-		if _, ok := tmp[v]; !ok {
-			tmp[v] = struct{}{}
-		}
+func (r *Ring[K]) GetUniques() map[K][]uint32 {
+	tmp := make(map[K][]uint32)
+
+	for i, v := range r.vnodes {
+		tmp[v] = append(tmp[v], uint32(i))
 	}
-	var uniqueVals []K
-	for val, _ := range tmp {
-		uniqueVals = append(uniqueVals, val.(K))
-	}
-	return uniqueVals
+	return tmp
 }

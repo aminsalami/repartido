@@ -11,14 +11,14 @@ import (
 
 var logger = zap.NewExample().Sugar()
 
-// SimpleCache implements node.ICache
+// SimpleCache implements ports.Storage
 type SimpleCache struct {
 	data map[string]string
 }
 
 // -----------------------------------------------------------------
 
-func NewSimpleCache() ports.ICache {
+func NewSimpleCache() ports.Storage {
 	return &SimpleCache{
 		make(map[string]string),
 	}

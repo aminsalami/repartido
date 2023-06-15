@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-option go_package = "github.com/aminsalami/repartido/node";
+option go_package = "github.com/aminsalami/repartido/proto/node";
 
 service commandApi {
   rpc Get(Command) returns (CommandResponse) {}
@@ -24,4 +24,35 @@ enum Cmd {
 message CommandResponse {
   bool success = 1;
   string data = 2;
+}
+
+// ----------------------------------
+// Internal messages exchanged between nodes during gossip phase
+message NodeState {
+  string name = 1;
+  string host = 2;
+  uint32 port = 3;
+  uint32 ramSize = 4;
+  repeated uint32 vNumbers = 5;
+}
+
+message RingState {
+  repeated NodeState nodeStates = 1;
+}
+
+// ----------------------------------
+
+message Noop {
+
+}
+
+message Event {
+  uint64 Id = 1;
+  uint64 LClock = 2;
+  string Origin = 3;
+  string From = 4;
+  oneof Payload {
+    Noop noop = 101;
+    RingState ringState = 102;
+  }
 }

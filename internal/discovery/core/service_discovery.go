@@ -1,12 +1,17 @@
 package core
 
 import (
+	"context"
 	"errors"
 	"github.com/aminsalami/repartido/internal/discovery"
 	"github.com/aminsalami/repartido/internal/discovery/ports"
 	"github.com/aminsalami/repartido/internal/ring"
+	nodeGrpc "github.com/aminsalami/repartido/proto/node"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/connectivity"
+	"google.golang.org/grpc/credentials/insecure"
 	"math/rand"
 	"strconv"
 	"time"
@@ -86,6 +91,8 @@ func (service *cacheService) registerNode(node *discovery.CacheNode) error {
 		}
 	}
 
+	go service.watch(node)
+
 	if err := service.notifyRingStatus(nodesToNotify); err != nil {
 		logger.Error(err.Error())
 	}
@@ -111,14 +118,14 @@ func (service *cacheService) unregisterNode(id string) error {
 	if err := service.storage.Delete(node); err != nil {
 		return err
 	}
-	uniqueNodes := service.ring.GetUniques()
-	if len(uniqueNodes) == 0 { // It means the ring became empty because the deleted node was the last one!
-		return nil
-	}
-	for _, pos := range removed {
-		n := rand.Intn(len(uniqueNodes))
-		service.ring.Add(pos, uniqueNodes[n])
-	}
+	//uniqueNodes := service.ring.GetUniques()
+	//if len(uniqueNodes) == 0 { // It means the ring became empty because the deleted node was the last one!
+	//	return nil
+	//}
+	//for _, pos := range removed {
+	//	n := rand.Intn(len(uniqueNodes))
+	//	service.ring.Add(pos, uniqueNodes[n])
+	//}
 	return nil
 }
 
@@ -133,4 +140,47 @@ func (service *cacheService) getVirtualNodes() []*discovery.CacheNode {
 
 func (service *cacheService) notifyRingStatus(changes map[*discovery.CacheNode][]int) error {
 	return nil
+}
+
+func (service *cacheService) watch(node *discovery.CacheNode) {
+	if node.Client == nil || node.Conn.GetState() != connectivity.Ready {
+		panic("discovery: a connection must be set up already")
+	}
+	for {
+		node.Conn.WaitForStateChange(context.Background(), connectivity.Ready)
+		// state has changed, Try to reconnect
+		err := service.connect(node)
+		if err == nil {
+			// TODO: Check if the node still store old data! We want to make sure that the node will continue its work
+			// without affecting the cluster
+			// service.isHealthy(node)
+			continue
+		}
+		logger.Infow("permanently lost connection to node", "node_id", node.Id)
+		break
+	}
+	node.State = discovery.Down
+	service.redistribute(node)
+}
+
+func (service *cacheService) connect(node *discovery.CacheNode) error {
+	ctx, cancelFun := context.WithTimeout(context.Background(), time.Second*2)
+	defer cancelFun()
+	conn, err := grpc.DialContext(ctx, node.Addr(), grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithBlock())
+	if err != nil {
+		return err
+	}
+	node.Client = nodeGrpc.NewCommandApiClient(conn)
+	node.Conn = conn
+	return nil
+}
+
+// redistribute sends a command to respective nodes to redistribute data among nodes when one node is down
+func (service *cacheService) redistribute(node *discovery.CacheNode) {
+	// Notify all nodes to stop receiving new key/values
+	// Give them their new "virtual-node IDs" (so that they refuse to receive new keys other than theirs)
+	// Send redistribute commands to those that were replicas:
+	//	* in case of a node added to ring, keys that are saved after ntp time should be moved
+	//	* In both cases (node crashed or added) copy replica values to another random noe in the ring
+	// Update the ring to reflect the new changes, delete the node which was down
 }

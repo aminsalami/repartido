@@ -6,6 +6,8 @@ import (
 	"github.com/spf13/viper"
 )
 
+var cfgFile string
+
 var nodeCmd = &cobra.Command{
 	Use:   "node",
 	Short: "Manage node/cache server",
@@ -16,19 +18,39 @@ var startNode = &cobra.Command{
 	Short: "start node/cache server",
 	Long:  "...",
 	Run: func(cmd *cobra.Command, args []string) {
-		viper.SetConfigName("node.conf")
+		if cfgFile != "" {
+			viper.SetConfigFile(cfgFile)
+		} else {
+			viper.SetConfigName("node.conf")
+			viper.AddConfigPath("/etc/repartido")
+			viper.AddConfigPath("./")
+		}
 		viper.SetConfigType("yaml")
-		viper.AddConfigPath("/etc/repartido")
-		viper.AddConfigPath("./")
-
+		viper.AutomaticEnv()
+		err := viper.BindEnv("initCluster", "INIT_CLUSTER", "INITCLUSTER", "initCluster")
+		if err != nil {
+			logger.Fatal(err.Error())
+		}
 		if err := viper.ReadInConfig(); err != nil {
 			logger.Fatal(err.Error())
 		}
-		node.StartServer()
+
+		conf := &node.Config{}
+		if err := viper.Unmarshal(conf); err != nil {
+			logger.Fatal(err.Error())
+		}
+		err, validConf := conf.Validate()
+		if err != nil {
+			logger.Fatal(err.Error())
+		}
+
+		node.StartService(validConf)
+		node.StartServer(validConf)
 	},
 }
 
 func init() {
+	nodeCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file. default paths './node.conf', '/etc/repartido/node.conf'")
 	rootCmd.AddCommand(nodeCmd)
 	nodeCmd.AddCommand(startNode)
 }
