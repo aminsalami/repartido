@@ -1,10 +1,13 @@
 package node
 
 import (
+	"context"
 	"github.com/aminsalami/repartido/internal/node/adaptors"
 	"github.com/aminsalami/repartido/internal/ring"
 	nodeProto "github.com/aminsalami/repartido/proto/node"
 	"github.com/hashicorp/memberlist"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/protobuf/proto"
 	"math/rand"
 	"os"
@@ -29,18 +32,10 @@ type nodeService struct {
 	eventId uint64
 }
 
-func StartService(conf *Config) {
-	s := newNodeService(conf)
-	err, _ := s.JoinCluster()
-	if err != nil {
-		logger.Fatal(err.Error())
-	}
-}
-
-func newNodeService(conf *Config) *nodeService {
+func newNodeService(conf *Config, ring *ring.Ring[*Node]) *nodeService {
 	service := &nodeService{
 		conf:         conf,
-		ring:         ring.NewRing[*Node](),
+		ring:         ring,
 		ringUpdateCh: make(chan struct{}),
 		clock:        adaptors.NewLamportClock(),
 		eventId:      1000,
@@ -84,8 +79,8 @@ func (s *nodeService) initializeRing() {
 		Id:      s.conf.Node.Name,
 		Name:    s.conf.Node.Name,
 		Host:    s.conf.Node.Host,
-		Port:    int32(s.conf.Node.Port),
-		RamSize: int32(s.conf.Node.RamSize),
+		Port:    uint32(s.conf.Node.Port),
+		RamSize: uint32(s.conf.Node.RamSize),
 		Conn:    nil,
 		Client:  nil,
 	}
@@ -100,18 +95,29 @@ func (s *nodeService) initializeRing() {
 func (s *nodeService) importRing(ringState *nodeProto.RingState) {
 	s.ring.Lock()
 	defer s.ring.Unlock()
+
+	oldNodes := s.ring.GetUniqueHashes()
 	for _, nodeState := range ringState.NodeStates {
-		node := Node{
+		node := &Node{
 			Id:      "",
 			Name:    nodeState.Name,
 			Host:    nodeState.Host,
-			Port:    int32(nodeState.Port),
-			RamSize: int32(nodeState.RamSize),
+			Port:    nodeState.Port,
+			RamSize: nodeState.RamSize,
 			Conn:    nil,
 			Client:  nil,
 		}
+		// Check if the node-state received from remote already exists in the ring
+		nodeStateHash := HashFromAddr("", nodeState.Host, nodeState.Port)
+		if oldNode, ok := oldNodes[nodeStateHash]; ok {
+			node.Conn = oldNode.Conn
+			node.Client = oldNode.Client
+		} else {
+			_ = s.connect(node) // TODO: handle error
+		}
+
 		for _, vNum := range nodeState.VNumbers {
-			s.ring.Add(int(vNum), &node)
+			s.ring.Add(int(vNum), node)
 		}
 	}
 	//logger.Infow("ring state", "# of real nodes", len(ringState.NodeStates))
@@ -161,6 +167,20 @@ func (s *nodeService) addNode(node *Node) {
 	logger.Infow("node added to the ring", "node.Name", node.Name, "node.Host", node.Host)
 }
 
+// connect tries to create a new grpc connection by dialing the node using Host & Port
+func (s *nodeService) connect(node *Node) error {
+	ctx, cancelFun := context.WithTimeout(context.Background(), time.Millisecond*1500)
+	defer cancelFun()
+	conn, err := grpc.DialContext(ctx, node.Addr(), grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithBlock())
+	if err != nil {
+		return err
+	}
+	node.Client = nodeProto.NewCommandApiClient(conn)
+	node.Conn = conn
+	logger.Debugw("New GRPC connection to node", node)
+	return nil
+}
+
 func (s *nodeService) numNodes() int {
 	return s.cluster.NumMembers()
 }
@@ -178,8 +198,8 @@ func (s *nodeService) joinRing() {
 		Id:      "",
 		Name:    s.conf.Node.Name,
 		Host:    s.conf.Node.Host,
-		Port:    int32(s.conf.Node.Port),
-		RamSize: int32(s.conf.Node.RamSize),
+		Port:    uint32(s.conf.Node.Port),
+		RamSize: uint32(s.conf.Node.RamSize),
 		Conn:    nil,
 		Client:  nil,
 	}

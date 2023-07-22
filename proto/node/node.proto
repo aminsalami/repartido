@@ -2,10 +2,19 @@ syntax = "proto3";
 
 option go_package = "github.com/aminsalami/repartido/proto/node";
 
+// Internal API between nodes.
+// TODO: add AAA
 service commandApi {
   rpc Get(Command) returns (CommandResponse) {}
   rpc Set(Command) returns (CommandResponse) {}
   rpc Del(Command) returns (CommandResponse) {}
+}
+
+// Public API. (probably gonna replace it by a simple REST API)
+service CoordinatorApi {
+  rpc Get(Command) returns (CoordinatorResponse) {}
+  rpc Set(Command) returns (CoordinatorResponse) {}
+  rpc Del(Command) returns (CoordinatorResponse) {}
 }
 
 message Command {
@@ -20,8 +29,12 @@ enum Cmd {
   DEL = 2;
 }
 
-
 message CommandResponse {
+  bool success = 1;
+  string data = 2;
+}
+
+message CoordinatorResponse {
   bool success = 1;
   string data = 2;
 }

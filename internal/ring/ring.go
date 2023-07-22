@@ -1,6 +1,8 @@
 package ring
 
-import "sync"
+import (
+	"sync"
+)
 
 // Size indicates the exact number of virtual-nodes on the ring.
 const Size = 256
@@ -23,7 +25,36 @@ func NewRing[K Comparable]() *Ring[K] {
 }
 
 func (r *Ring[K]) Get(position int) K {
+	if position > Size {
+		panic("node position cannot be greater than ring.Size")
+	}
 	return r.vnodes[position]
+}
+
+// GetNextN returns n clockwise nodes starting from position on the ring.
+// does not return error if it cannot find n nodes
+func (r *Ring[K]) GetNextN(position int, n int) []K {
+	startingNode := r.Get(position)
+
+	seen := make(map[string]K)
+	seen[startingNode.Hash()] = startingNode
+	// locate real nodes after startNode
+	for i := 0; i < Size; i++ {
+		pos := (i + position) % Size
+		_, ok := seen[r.vnodes[pos].Hash()]
+		if !ok {
+			seen[r.vnodes[pos].Hash()] = r.vnodes[pos]
+		}
+		if len(seen) >= n {
+			break
+		}
+	}
+
+	var result []K
+	for _, node := range seen {
+		result = append(result, node)
+	}
+	return result
 }
 
 func (r *Ring[K]) Contains(node K) bool {
@@ -77,6 +108,17 @@ func (r *Ring[K]) GetUniques() map[K][]uint32 {
 
 	for i, v := range r.vnodes {
 		tmp[v] = append(tmp[v], uint32(i))
+	}
+	return tmp
+}
+
+func (r *Ring[K]) GetUniqueHashes() map[string]K {
+	// TODO: performance? compare Hash() vs builtin tmp[K] access performance
+	tmp := make(map[string]K)
+	for _, node := range r.vnodes {
+		if _, ok := tmp[node.Hash()]; !ok {
+			tmp[node.Hash()] = node
+		}
 	}
 	return tmp
 }

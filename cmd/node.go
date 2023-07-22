@@ -44,8 +44,7 @@ var startNode = &cobra.Command{
 			logger.Fatal(err.Error())
 		}
 
-		node.StartService(validConf)
-		node.StartServer(validConf)
+		node.Init(validConf)
 	},
 }
 

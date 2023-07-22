@@ -12,8 +12,8 @@ type Node struct {
 	Id      string
 	Name    string
 	Host    string
-	Port    int32
-	RamSize int32
+	Port    uint32
+	RamSize uint32
 
 	Conn   *grpc.ClientConn
 	Client nodegrpc.CommandApiClient
@@ -28,11 +28,15 @@ func (n *Node) Hash() string {
 func (n *Node) MarshalLogObject(enc zapcore.ObjectEncoder) error {
 	enc.AddString("Name", n.Name)
 	enc.AddString("Host", n.Host)
-	enc.AddInt32("Port", n.Port)
-	enc.AddInt32("RamSize", n.RamSize)
+	enc.AddUint32("Port", n.Port)
+	enc.AddUint32("RamSize", n.RamSize)
 	return nil
 }
 
 func (n *Node) Addr() string {
 	return n.Host + ":" + strconv.Itoa(int(n.Port))
+}
+
+func HashFromAddr(id, host string, port uint32) string {
+	return id + host + ":" + strconv.Itoa(int(port))
 }

@@ -52,6 +52,10 @@ func (c *Config) GetNodeAddr() string {
 	return c.Node.Host + ":" + strconv.Itoa(c.Node.Port)
 }
 
+func (c *Config) GetPublicAddr() string {
+	return c.Node.Host + ":" + strconv.Itoa(c.Node.Port+100)
+}
+
 func (c *Config) GetGossipAddr() string {
 	return c.Node.Host + ":" + strconv.Itoa(c.Gossip.Port)
 }
