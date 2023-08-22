@@ -11,6 +11,7 @@ import (
 )
 
 var insufficientReadResponses = errors.New("insufficient read responses")
+var insufficientWriteResponses = errors.New("insufficient write responses")
 
 type quorum struct {
 	n int
@@ -74,13 +75,15 @@ func (c *Coordinator) cGet(cmd *proto.Command) (string, error) {
 			} else {
 				r, err = node.Client.Get(ctx, cmd)
 			}
+
 			if err != nil {
 				if err == context.Canceled {
 					return
 				}
 				responses <- &proto.CommandResponse{Success: false, Data: err.Error() + " -> " + node.Addr()}
+			} else {
+				responses <- r
 			}
-			responses <- r
 		}(node, ctx)
 	}
 
@@ -131,8 +134,9 @@ func (c *Coordinator) cPut(cmd *proto.Command) error {
 			}
 			if err != nil {
 				responses <- &proto.CommandResponse{Success: false, Data: err.Error() + " -> " + node.Addr()}
+			} else {
+				responses <- r
 			}
-			responses <- r
 		}(node, ctx)
 	}
 
@@ -141,6 +145,7 @@ func (c *Coordinator) cPut(cmd *proto.Command) error {
 		res := <-responses
 		if !res.Success {
 			// TODO: handle failed write
+			continue
 		}
 		successWrites = append(successWrites, res)
 		if len(successWrites) > c.quorum.w {
@@ -151,12 +156,55 @@ func (c *Coordinator) cPut(cmd *proto.Command) error {
 	}
 	if len(successWrites) < c.quorum.w {
 		//	TODO: handle failed cPut coordination
-		return errors.New("failed to write on servers")
+		return insufficientWriteResponses
 	}
 	return nil
 }
 
 func (c *Coordinator) cDelete(cmd *proto.Command) error {
+	nodes := c.locateNodes(cmd.Key)
+	responses := make(chan *proto.CommandResponse, len(nodes))
+
+	ctx, cancelFunc := context.WithTimeout(context.Background(), time.Millisecond*1400)
+	defer cancelFunc()
+	// Send a DEL request to all corresponding nodes
+	for _, node := range nodes {
+		go func(node *Node) {
+			var err error
+			var r *proto.CommandResponse
+			if node.Hash() == c.conf.GetNodeAddr() {
+				r, err = c.localRequest(cmd)
+			} else {
+				r, err = node.Client.Del(ctx, cmd)
+			}
+			if err == context.Canceled {
+				return
+			}
+			if err != nil {
+				responses <- &proto.CommandResponse{Success: false, Data: err.Error() + " -> " + node.Addr()}
+			} else {
+				responses <- r
+			}
+		}(node)
+	}
+
+	var successResponses []*proto.CommandResponse
+	for i := 0; i < len(nodes); i++ {
+		r := <-responses
+		if !r.Success {
+			// TODO: handle/log a failed request!
+			continue
+		}
+		successResponses = append(successResponses, r)
+		if len(successResponses) >= c.quorum.w {
+			cancelFunc()
+			break
+		}
+	}
+
+	if len(successResponses) < c.quorum.w {
+		return insufficientWriteResponses
+	}
 	return nil
 }
 

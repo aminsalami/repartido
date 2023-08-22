@@ -102,19 +102,23 @@ func (cs *CoordinatorServer) Set(ctx context.Context, command *nodegrpc.Command)
 	return &response, nil
 }
 
-func (cs *CoordinatorServer) Del(ctx context.Context, in *nodegrpc.Command) (*nodegrpc.CoordinatorResponse, error) {
-	//TODO implement me
-	panic("implement me")
+func (cs *CoordinatorServer) Del(ctx context.Context, command *nodegrpc.Command) (*nodegrpc.CoordinatorResponse, error) {
+	err := cs.coordinatorService.cDelete(command)
+	if err != nil {
+		logger.Error(err)
+		return &nodegrpc.CoordinatorResponse{Success: false, Data: err.Error()}, err
+	}
+	return &nodegrpc.CoordinatorResponse{Success: true, Data: "done!"}, nil
 }
 
 func (cs *CoordinatorServer) Start() {
-	l, err := net.Listen("tcp", cs.conf.GetPublicAddr())
+	l, err := net.Listen("tcp", cs.conf.GetCoordinatorAddr())
 	if err != nil {
 		logger.Fatal(err)
 	}
 	grpcServer := googleGrpc.NewServer()
 	nodegrpc.RegisterCoordinatorApiServer(grpcServer, cs)
-	logger.Info("-> Coordinator server started on " + cs.conf.GetPublicAddr())
+	logger.Info("-> Coordinator server started on " + cs.conf.GetCoordinatorAddr())
 	if err := grpcServer.Serve(l); err != nil {
 		logger.Fatal(err)
 	}

@@ -12,9 +12,14 @@ const (
 )
 
 type NodeConfig struct {
-	Name    string
-	Host    string
-	Port    int
+	Name string
+	Host string
+
+	// Internal/Command Port
+	Port int
+	// Coordinator/Public Port used by clients
+	CoordinatorPort int
+
 	RamSize int `mapstructure:ram_size`
 }
 
@@ -45,6 +50,9 @@ func (c *Config) Validate() (error, *Config) {
 	if !c.InitCluster && len(c.Gossip.Peers) == 0 {
 		logger.Fatalw("invalid config. `gossip.peers` is required to join the cluster")
 	}
+	if c.Node.CoordinatorPort == 0 {
+		c.Node.CoordinatorPort = c.Node.Port + 100
+	}
 	return nil, c
 }
 
@@ -52,8 +60,8 @@ func (c *Config) GetNodeAddr() string {
 	return c.Node.Host + ":" + strconv.Itoa(c.Node.Port)
 }
 
-func (c *Config) GetPublicAddr() string {
-	return c.Node.Host + ":" + strconv.Itoa(c.Node.Port+100)
+func (c *Config) GetCoordinatorAddr() string {
+	return c.Node.Host + ":" + strconv.Itoa(c.Node.CoordinatorPort)
 }
 
 func (c *Config) GetGossipAddr() string {

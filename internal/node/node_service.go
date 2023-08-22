@@ -112,8 +112,9 @@ func (s *nodeService) importRing(ringState *nodeProto.RingState) {
 		if oldNode, ok := oldNodes[nodeStateHash]; ok {
 			node.Conn = oldNode.Conn
 			node.Client = oldNode.Client
-		} else {
-			_ = s.connect(node) // TODO: handle error
+		} else if err := s.connect(node); err != nil {
+			// TODO: Handle fail connections. retry mechanism? communication with gossip layer to mark it as dead?
+			logger.Fatal(err)
 		}
 
 		for _, vNum := range nodeState.VNumbers {
