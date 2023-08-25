@@ -9,11 +9,8 @@ var logger = zap.NewExample().Sugar()
 
 var rootCmd = &cobra.Command{
 	Use:   "repartido",
-	Short: "repartido is a fun distributed cache!",
-	Long:  "-Whats your name?\n+What?\n-Whats yourrr name?\n+Tony\n-Fuck you tony!",
-	Run: func(cmd *cobra.Command, args []string) {
-		logger.Info("wtf?")
-	},
+	Short: "Repartido is a key-value data store",
+	Long:  "Repartido is a key-value data store with high availability and replication.",
 }
 
 func Execute() {

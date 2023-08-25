@@ -10,7 +10,7 @@ var cfgFile string
 
 var nodeCmd = &cobra.Command{
 	Use:   "node",
-	Short: "Manage node/cache server",
+	Short: "Manage node server",
 	Long:  "Go away!",
 }
 var startNode = &cobra.Command{

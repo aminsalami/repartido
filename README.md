@@ -14,14 +14,13 @@ Discache is a distributed cache server which stores data into a tmp cache and th
 
 
 
-### To implement
+### FIXES
 
-* Implement a cache package store key/value data
-* Implement a dCache package which is responsible for storing/retrieving data from every cache server. It handles the distribution.
-* Implement a probe package which constantly check the status (healthy/broken statuses) of cache servers. 
-* Implement a go-client which uses http protocol to push data into the discache server
-* Implement a worker responsible for inserting data from queue to SQL tables
-* test coverage
-* Dockerfile which runs the server
-* "docker-compose.yaml" which starts X nodes for local testing
-* K8S deployment
+* Fix cluster name conflict. It's not a good idea to rely on "unique names" specified in conf file.
+
+
+### TODO
+
+* Add a conf template
+* Implement a validation+default interface for inner configs  
+* Add an entry to conf.Config for logging. Configure Zap to log into a file.

@@ -1,0 +1,44 @@
+version: "3"
+
+services:
+  node1: &base-node
+    build:
+      dockerfile: Dockerfile
+    ports:
+      - "8201:8200"
+    volumes:
+      - ./node.conf:/etc/repartido/node.conf
+    networks:
+      - common-network
+#    command: ["sh",  "-c", "sleep 1999"]
+
+  node2:
+    <<: *base-node
+    ports:
+      - "8202:8200"
+    volumes:
+      - ./node2.conf:/etc/repartido/node.conf
+    depends_on:
+      - node1
+
+  node3:
+    <<: *base-node
+    ports:
+      - "8203:8200"
+    volumes:
+      - ./node3.conf:/etc/repartido/node.conf
+    depends_on:
+      - node2
+
+  node4:
+    <<: *base-node
+    ports:
+      - "8204:8200"
+    volumes:
+      - ./node4.conf:/etc/repartido/node.conf
+    depends_on:
+      - node1
+      - node2
+
+networks:
+  common-network: { }

@@ -41,8 +41,14 @@ func newNodeService(conf *Config, ring *ring.Ring[*Node]) *nodeService {
 		eventId:      1000,
 	}
 
-	c := memberlist.DefaultLANConfig()
-	c.BindAddr = conf.Node.Host
+	var c *memberlist.Config
+	if conf.DevMode {
+		c = memberlist.DefaultLANConfig()
+	} else {
+		c = memberlist.DefaultWANConfig()
+	}
+	// TODO: override cluster/memberlist config by repartido conf.ClusterConfig
+	//c.BindAddr = conf.Node.Host
 	c.BindPort = conf.Gossip.Port
 	c.Name = conf.Node.Name
 	c.GossipInterval = conf.Gossip.Interval * time.Millisecond
@@ -114,7 +120,7 @@ func (s *nodeService) importRing(ringState *nodeProto.RingState) {
 			node.Client = oldNode.Client
 		} else if err := s.connect(node); err != nil {
 			// TODO: Handle fail connections. retry mechanism? communication with gossip layer to mark it as dead?
-			logger.Fatal(err)
+			logger.Fatalw("failed grpc dial to remote node", "err", err, "node.Name", node.Name, "node.Host", node.Host, "node.Port", node.Port)
 		}
 
 		for _, vNum := range nodeState.VNumbers {
@@ -178,7 +184,7 @@ func (s *nodeService) connect(node *Node) error {
 	}
 	node.Client = nodeProto.NewCommandApiClient(conn)
 	node.Conn = conn
-	logger.Debugw("New GRPC connection to node", node)
+	logger.Debugw("Successfully dialed the imported node", "node", node)
 	return nil
 }
 
@@ -188,13 +194,13 @@ func (s *nodeService) numNodes() int {
 
 // -----------------------------------------------------------------
 
-func (s *nodeService) itsMe(node *memberlist.Node) bool {
-	return s.conf.Node.Name == node.Name
-}
+//func (s *nodeService) itsMe(node *memberlist.Node) bool {
+//	return s.conf.Node.Name == node.Name
+//}
 
 func (s *nodeService) joinRing() {
-	logger.Debug("going to join the ring...")
 	// injecting me to the ring
+	//host := os.Hostname()
 	me := Node{
 		Id:      "",
 		Name:    s.conf.Node.Name,
@@ -250,16 +256,18 @@ func (s *nodeService) JoinCluster() (error, chan os.Signal) {
 	}()
 
 	// Do not proceed if this is the first node creating the cluster
-	if s.conf.InitCluster {
-		logger.Infow("`InitCluster` flag is found")
+	if len(s.conf.Gossip.Peers) == 0 {
+		logger.Infow("First node. Initializing the cluster/memberlist...")
 		s.initializeRing()
 		return nil, stop
 	}
-	logger.Infow("Trying to join the cluster...")
+	logger.Infow("Joining the cluster/memberlist...")
 	// Introduce yourself to the cluster by sending a broadcast join message
-	if _, err := s.cluster.Join(s.conf.Gossip.Peers); err != nil {
+	sc, err := s.cluster.Join(s.conf.Gossip.Peers)
+	if err != nil {
 		return err, stop
 	}
+	logger.Infow("successfully joined the cluster/memberlist", "# of successful contacts", sc)
 
 	// add me to the ring and let other nodes know about it
 	s.joinRing()

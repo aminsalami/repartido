@@ -1,18 +1,22 @@
 package node
 
 import (
+	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
 const (
-	intervalDefault = 0
+	intervalDefault = 300
 	intervalMax     = 1000
-	intervalMin     = 100
+	intervalMin     = 300
 )
 
 type NodeConfig struct {
+	// A unique name in the cluster/memberlist
 	Name string
+	// The public hostname or IP of the node. Default is os.Hostname()
 	Host string
 
 	// Internal/Command Port
@@ -30,13 +34,34 @@ type GossipConfig struct {
 }
 
 type Config struct {
-	InitCluster bool
-	Node        NodeConfig
-	Gossip      GossipConfig
+	Node   NodeConfig
+	Gossip GossipConfig
+
+	// Dev or Production mode
+	DevMode bool
 }
 
-// Validate ...
+// Validate check the conf object and returns a modified/validated version of the config object
+// TODO: Improve the validation for every available config
 func (c *Config) Validate() (error, *Config) {
+	if c.Node.Host == "" {
+		host, err := os.Hostname()
+		if err != nil {
+			logger.Fatalw("invalid hostname", "err", err)
+		}
+		c.Node.Host = host
+	}
+	if c.Node.Port == 0 {
+		c.Node.Port = 8100
+	}
+	if c.Node.CoordinatorPort == 0 {
+		c.Node.CoordinatorPort = c.Node.Port + 100
+	}
+
+	if c.Node.RamSize == 0 {
+		c.Node.RamSize = 1024
+	}
+
 	if c.Gossip.Interval == 0 {
 		c.Gossip.Interval = intervalDefault
 	} else if c.Gossip.Interval > intervalMax {
@@ -46,14 +71,26 @@ func (c *Config) Validate() (error, *Config) {
 		logger.Warnw("value must be more than `100`ms. it's been set to default min-value", "key", "gossip.Interval", "value", c.Gossip.Interval)
 		c.Gossip.Interval = intervalMin
 	}
+	if c.Gossip.Port == 0 {
+		c.Gossip.Port = 7946
+	}
 
-	if !c.InitCluster && len(c.Gossip.Peers) == 0 {
-		logger.Fatalw("invalid config. `gossip.peers` is required to join the cluster")
+	var newPeers []string
+	// add default port to every peer
+	for _, peer := range c.Gossip.Peers {
+		newPeers = append(newPeers, c.validatePeer(peer))
 	}
-	if c.Node.CoordinatorPort == 0 {
-		c.Node.CoordinatorPort = c.Node.Port + 100
-	}
+
 	return nil, c
+}
+
+func (c *Config) validatePeer(peer string) string {
+	// TODO: do we need to validate the peer format? such as URLs, IPs, etc
+	split := strings.Split(peer, ":")
+	if len(split) == 1 {
+		return split[0] + ":7946"
+	}
+	return peer
 }
 
 func (c *Config) GetNodeAddr() string {

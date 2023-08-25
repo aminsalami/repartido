@@ -3,9 +3,7 @@ module github.com/aminsalami/repartido
 go 1.19
 
 require (
-	github.com/google/uuid v1.3.0
 	github.com/hashicorp/memberlist v0.5.0
-	github.com/mattn/go-sqlite3 v1.14.16
 	github.com/spf13/cobra v1.6.1
 	github.com/spf13/viper v1.14.0
 	github.com/stretchr/testify v1.8.1
